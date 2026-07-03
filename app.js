@@ -1,3 +1,8 @@
+// --- SUPABASE CONFIGURATION (HARDCODED) ---
+// Tempel URL dan Anon Key Supabase Anda di sini agar user Anda tidak perlu menginputnya secara manual.
+const SUPABASE_URL = "MASUKKAN_URL_SUPABASE_DI_SINI";
+const SUPABASE_KEY = "MASUKKAN_ANON_KEY_DI_SINI";
+
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 
@@ -6,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SEMESTER_2 = [6, 7, 8, 9, 10, 11]; // Jul - Des
     const MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
-    // State
+    // App State
     let state = {
         initialBalance: 10000000,
         semester: 2, 
@@ -14,14 +19,17 @@ document.addEventListener('DOMContentLoaded', () => {
         activeMonth: 6, 
         monthlySettings: {}, 
         dailyData: {},
-        supabaseUrl: '',
-        supabaseKey: '',
-        syncKey: ''
+        supabaseUrl: SUPABASE_URL,
+        supabaseKey: SUPABASE_KEY,
+        sessionToken: '', 
+        userId: '', 
+        userEmail: ''
     };
 
     // Cache for compounding results
     let calculatedSemesterData = {}; 
     let syncDebounceTimer;
+    let authMode = 'login'; 
 
     // Formatting Helpers
     const formatCurrency = (amount) => {
@@ -35,12 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load state from local storage
     function loadState() {
-        const saved = localStorage.getItem('pimenfx_state_v4');
+        const saved = localStorage.getItem('pimenfx_auth_state_v5');
         if (saved) {
             state = { ...state, ...JSON.parse(saved) };
         } else {
             // Check legacy versions
-            const oldSaved = localStorage.getItem('compoundAppStateV3') || localStorage.getItem('compoundAppStateV2') || localStorage.getItem('compoundAppState');
+            const oldSaved = localStorage.getItem('pimenfx_state_v4') || localStorage.getItem('compoundAppStateV3');
             if (oldSaved) {
                 const parsed = JSON.parse(oldSaved);
                 state.initialBalance = parsed.initialBalance || 10000000;
@@ -48,11 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.year = parsed.year || 2026;
                 state.monthlySettings = parsed.monthlySettings || {};
                 state.dailyData = parsed.dailyData || {};
-                state.supabaseUrl = parsed.supabaseUrl || '';
-                state.supabaseKey = parsed.supabaseKey || '';
-                state.syncKey = parsed.syncKey || '';
             }
         }
+
+        // Always force update URL/Key from hardcoded constants
+        state.supabaseUrl = SUPABASE_URL;
+        state.supabaseKey = SUPABASE_KEY;
 
         // Initialize target % and expense defaults for all months
         const defaults = [
@@ -83,8 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveState(skipCloud = false) {
-        localStorage.setItem('pimenfx_state_v4', JSON.stringify(state));
-        if (!skipCloud) {
+        localStorage.setItem('pimenfx_auth_state_v5', JSON.stringify(state));
+        if (!skipCloud && state.sessionToken && isSupabaseConfigured()) {
             syncPushDebounced();
         }
     }
@@ -96,7 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // DOM Elements
+    function isSupabaseConfigured() {
+        return state.supabaseUrl && state.supabaseUrl !== "MASUKKAN_URL_SUPABASE_DI_SINI" && state.supabaseKey && state.supabaseKey !== "MASUKKAN_ANON_KEY_DI_SINI";
+    }
+
+    // DOM Elements (Dashboard)
+    const elDashboardWrapper = document.getElementById('dashboardWrapper');
     const elInitialBalance = document.getElementById('initialBalance');
     const elBtnSem1 = document.getElementById('btnSem1');
     const elBtnSem2 = document.getElementById('btnSem2');
@@ -118,19 +132,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const elDrawerOverlay = document.getElementById('drawerOverlay');
     const elDrawerSettingsList = document.getElementById('drawerSettingsList');
     const elSaveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const elResetDataBtn = document.getElementById('resetDataBtn');
 
-    // Cloud inputs
-    const elDbUrl = document.getElementById('dbUrl');
-    const elDbKey = document.getElementById('dbKey');
-    const elDbSyncKey = document.getElementById('dbSyncKey');
+    // DOM Elements (Auth)
+    const elLoginWrapper = document.getElementById('loginWrapper');
+    const elAuthForm = document.getElementById('authForm');
+    const elAuthEmail = document.getElementById('authEmail');
+    const elAuthPassword = document.getElementById('authPassword');
+    const elAuthSubmitBtn = document.getElementById('authSubmitBtn');
+    const elAuthMessage = document.getElementById('authMessage');
+    const elTabLoginBtn = document.getElementById('tabLoginBtn');
+    const elTabRegisterBtn = document.getElementById('tabRegisterBtn');
+    const elLogoutBtn = document.getElementById('logoutBtn');
+    const elLoginTabs = document.querySelector('.login-tabs');
+
+    // Auth Recovery DOM Elements
+    const elForgotPasswordLink = document.getElementById('forgotPasswordLink');
+    const elRecoverForm = document.getElementById('recoverForm');
+    const elRecoverEmail = document.getElementById('recoverEmail');
+    const elBackToLoginFromRecoverBtn = document.getElementById('backToLoginFromRecoverBtn');
+    
+    const elUpdatePasswordForm = document.getElementById('updatePasswordForm');
+    const elNewPassword = document.getElementById('newPassword');
+    const elCancelResetBtn = document.getElementById('cancelResetBtn');
 
     // Drawer triggers
     function openDrawer() {
-        // Populate inputs
-        elDbUrl.value = state.supabaseUrl;
-        elDbKey.value = state.supabaseKey;
-        elDbSyncKey.value = state.syncKey;
-
         renderDrawerSettings();
         elSettingsDrawer.classList.add('open');
         elDrawerOverlay.classList.add('visible');
@@ -146,7 +173,45 @@ document.addEventListener('DOMContentLoaded', () => {
     elDrawerOverlay.addEventListener('click', closeDrawer);
 
     // Initializer
-    async function initUI() {
+    async function init() {
+        loadState();
+
+        // Check if there is an incoming recovery hash link (redirected from email link)
+        const hash = window.location.hash;
+        if (hash && hash.includes('type=recovery') && hash.includes('access_token=')) {
+            // Parse hash parameters
+            const params = new URLSearchParams(hash.replace('#', '?'));
+            const accessToken = params.get('access_token');
+            
+            if (accessToken) {
+                // Temporarily save access token in state to allow password update
+                state.sessionToken = accessToken;
+                // Clear hash from URL immediately
+                window.history.replaceState("", document.title, window.location.pathname);
+                
+                showLogin();
+                elAuthForm.style.display = 'none';
+                elRecoverForm.style.display = 'none';
+                elLoginTabs.style.display = 'none';
+                elUpdatePasswordForm.style.display = 'flex';
+                displayAuthMessage('Silakan masukkan password baru Anda.', 'success');
+                return;
+            }
+        }
+
+        // Check if there is an active session
+        if (state.sessionToken && isSupabaseConfigured()) {
+            showDashboard();
+            await syncPull();
+        } else {
+            showLogin();
+        }
+    }
+
+    function showDashboard() {
+        elLoginWrapper.style.display = 'none';
+        elDashboardWrapper.style.display = 'flex';
+
         elInitialBalance.value = state.initialBalance;
         elYearInput.value = state.year;
         
@@ -154,14 +219,233 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
-
-        // Perform initial pull from cloud
-        if (state.supabaseUrl && state.supabaseKey && state.syncKey) {
-            await syncPull();
-        } else {
-            updateSyncStatus('offline');
-        }
     }
+
+    function showLogin() {
+        elDashboardWrapper.style.display = 'none';
+        elLoginWrapper.style.display = 'flex';
+        updateSyncStatus('offline');
+        lucide.createIcons();
+    }
+
+    // Handle Authentication Tabs (Login / Register Toggle)
+    elTabLoginBtn.addEventListener('click', () => {
+        authMode = 'login';
+        elTabLoginBtn.classList.add('active');
+        elTabRegisterBtn.classList.remove('active');
+        elAuthSubmitBtn.querySelector('span').innerText = 'Masuk';
+        elAuthMessage.innerText = '';
+        elAuthMessage.className = 'auth-message';
+    });
+
+    elTabRegisterBtn.addEventListener('click', () => {
+        authMode = 'register';
+        elTabRegisterBtn.classList.add('active');
+        elTabLoginBtn.classList.remove('active');
+        elAuthSubmitBtn.querySelector('span').innerText = 'Daftar Akun';
+        elAuthMessage.innerText = '';
+        elAuthMessage.className = 'auth-message';
+    });
+
+    // Form submit: Authentication trigger
+    elAuthForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (!isSupabaseConfigured()) {
+            displayAuthMessage('Supabase belum dikonfigurasi oleh pemilik aplikasi. Mohon lengkapi SUPABASE_URL dan SUPABASE_KEY di file app.js.', 'error');
+            return;
+        }
+
+        const email = elAuthEmail.value.trim();
+        const password = elAuthPassword.value.trim();
+
+        displayAuthMessage(authMode === 'login' ? 'Sedang masuk...' : 'Sedang mendaftar...', 'success');
+
+        try {
+            if (authMode === 'login') {
+                const response = await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=password`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': state.supabaseKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error_description || err.message || 'Login gagal.');
+                }
+
+                const data = await response.json();
+                state.sessionToken = data.access_token;
+                state.userId = data.user.id;
+                state.userEmail = data.user.email;
+                saveState(true);
+
+                displayAuthMessage('Login berhasil! Mengunduh data...', 'success');
+                showDashboard();
+                await syncPull();
+            } else {
+                const response = await fetch(`${state.supabaseUrl}/auth/v1/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': state.supabaseKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.message || 'Pendaftaran gagal.');
+                }
+
+                displayAuthMessage('Pendaftaran berhasil! Silakan cek email Anda untuk konfirmasi pendaftaran akun.', 'success');
+            }
+        } catch (error) {
+            console.error('Auth Error:', error);
+            displayAuthMessage(error.message, 'error');
+        }
+    });
+
+    // Forgot Password Trigger
+    elForgotPasswordLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        elAuthForm.style.display = 'none';
+        elLoginTabs.style.display = 'none';
+        elRecoverForm.style.display = 'flex';
+        elAuthMessage.innerText = '';
+    });
+
+    // Back to Login Trigger
+    elBackToLoginFromRecoverBtn.addEventListener('click', () => {
+        elRecoverForm.style.display = 'none';
+        elAuthForm.style.display = 'flex';
+        elLoginTabs.style.display = 'flex';
+        elAuthMessage.innerText = '';
+    });
+
+    // Recover Form Submission (Request Reset Link)
+    elRecoverForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!isSupabaseConfigured()) {
+            displayAuthMessage('Supabase URL/Key belum dikonfigurasi.', 'error');
+            return;
+        }
+
+        const email = elRecoverEmail.value.trim();
+        displayAuthMessage('Sedang mengirim email pemulihan...', 'success');
+
+        try {
+            const response = await fetch(`${state.supabaseUrl}/auth/v1/recover`, {
+                method: 'POST',
+                headers: {
+                    'apikey': state.supabaseKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Gagal mengirim email pemulihan.');
+            }
+
+            displayAuthMessage('Link reset password telah berhasil dikirim ke email Anda!', 'success');
+        } catch (error) {
+            console.error('Recover Error:', error);
+            displayAuthMessage(error.message, 'error');
+        }
+    });
+
+    // Cancel Update Password
+    elCancelResetBtn.addEventListener('click', () => {
+        state.sessionToken = '';
+        saveState(true);
+        
+        elUpdatePasswordForm.style.display = 'none';
+        elAuthForm.style.display = 'flex';
+        elLoginTabs.style.display = 'flex';
+        elAuthMessage.innerText = '';
+    });
+
+    // Update Password Submission
+    elUpdatePasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (!isSupabaseConfigured() || !state.sessionToken) {
+            displayAuthMessage('Kredensial sesi tidak ditemukan.', 'error');
+            return;
+        }
+
+        const password = elNewPassword.value.trim();
+        if (password.length < 8) {
+            displayAuthMessage('Password minimal terdiri dari 8 karakter.', 'error');
+            return;
+        }
+
+        displayAuthMessage('Sedang memperbarui password...', 'success');
+
+        try {
+            const response = await fetch(`${state.supabaseUrl}/auth/v1/user`, {
+                method: 'PUT',
+                headers: {
+                    'apikey': state.supabaseKey,
+                    'Authorization': `Bearer ${state.sessionToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Gagal memperbarui password.');
+            }
+
+            // Clear session and ask to relogin
+            state.sessionToken = '';
+            saveState(true);
+
+            displayAuthMessage('Password berhasil diperbarui! Silakan masuk dengan password baru Anda.', 'success');
+            setTimeout(() => {
+                elUpdatePasswordForm.style.display = 'none';
+                elAuthForm.style.display = 'flex';
+                elLoginTabs.style.display = 'flex';
+                elAuthMessage.innerText = '';
+            }, 3000);
+        } catch (error) {
+            console.error('Update Password Error:', error);
+            displayAuthMessage(error.message, 'error');
+        }
+    });
+
+    function displayAuthMessage(msg, type) {
+        elAuthMessage.innerText = msg;
+        elAuthMessage.className = `auth-message ${type}`;
+    }
+
+    // Logout Action
+    elLogoutBtn.addEventListener('click', () => {
+        state.sessionToken = '';
+        state.userId = '';
+        state.userEmail = '';
+        saveState(true);
+        showLogin();
+    });
+
+    // Reset Data Action (Inside settings drawer)
+    elResetDataBtn.addEventListener('click', () => {
+        if (confirm("Apakah Anda yakin ingin menghapus seluruh centang harian dan catatan jurnal? Tindakan ini tidak dapat dibatalkan.")) {
+            state.dailyData = {};
+            calculateCompounding();
+            renderActiveMonthDashboard();
+            saveState();
+            closeDrawer();
+            alert("Seluruh data plan & jurnal trading berhasil direset!");
+        }
+    });
 
     function updateSemesterUI() {
         if (state.semester === 1) {
@@ -193,7 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateObj = new Date(state.year, m, d);
                 const dayOfWeek = dateObj.getDay(); 
                 
-                // Exclude weekends
                 if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
                 const dateStr = `${state.year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -232,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Month Tabs
+    // Month Tabs switcher
     function renderMonthTabs() {
         elMonthTabs.innerHTML = '';
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
@@ -246,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             btn.addEventListener('click', () => {
                 state.activeMonth = m;
-                saveState(true); // Don't trigger cloud upload just for changing tabs
+                saveState(true); 
                 renderMonthTabs();
                 renderActiveMonthDashboard();
             });
@@ -254,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Dashboard info updates
+    // Render active month content and updates top dashboard cards
     function renderActiveMonthDashboard() {
         const data = calculatedSemesterData[state.activeMonth];
         if (!data) return;
@@ -266,7 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         elActiveMonthTitle.innerText = `${MONTH_NAMES[state.activeMonth]} ${state.year}`;
 
-        // Render Table Body
         elTradingTableBody.innerHTML = '';
         data.dailyRows.forEach(row => {
             const tr = document.createElement('tr');
@@ -299,7 +581,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!state.dailyData[dateStr]) state.dailyData[dateStr] = {};
                 state.dailyData[dateStr].done = e.target.checked;
                 
-                // Recalculate compounding dynamic chain forward
                 calculateCompounding();
                 renderActiveMonthDashboard();
                 saveState();
@@ -348,20 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Save settings (both Database Credentials and Monthly Targets)
+    // Save settings (Monthly Targets)
     elSaveSettingsBtn.addEventListener('click', async () => {
-        // 1. Save database settings
-        const dbUrlVal = elDbUrl.value.trim();
-        const dbKeyVal = elDbKey.value.trim();
-        const dbSyncKeyVal = elDbSyncKey.value.trim();
-
-        const credentialsChanged = (state.supabaseUrl !== dbUrlVal || state.supabaseKey !== dbKeyVal || state.syncKey !== dbSyncKeyVal);
-
-        state.supabaseUrl = dbUrlVal;
-        state.supabaseKey = dbKeyVal;
-        state.syncKey = dbSyncKeyVal;
-
-        // 2. Save monthly targets
+        // Save monthly settings
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
         months.forEach(m => {
             const pctInp = document.getElementById(`drawer_pct_${m}`);
@@ -374,18 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        saveState(credentialsChanged); // If credentials changed, pull first instead of uploading blank
+        saveState();
         calculateCompounding();
         renderActiveMonthDashboard();
         closeDrawer();
-
-        if (credentialsChanged) {
-            if (state.supabaseUrl && state.supabaseKey && state.syncKey) {
-                await syncPull();
-            } else {
-                updateSyncStatus('offline');
-            }
-        }
     });
 
     // Top Controls Event Handlers
@@ -424,24 +686,32 @@ document.addEventListener('DOMContentLoaded', () => {
         saveState();
     });
 
-    // --- Supabase Cloud Sync Handlers ---
+    // --- Supabase Cloud Sync Handlers with JWT Authorization ---
 
     async function syncPull() {
-        if (!state.supabaseUrl || !state.supabaseKey || !state.syncKey) {
+        if (!isSupabaseConfigured() || !state.sessionToken) {
             updateSyncStatus('offline');
             return;
         }
 
         updateSyncStatus('syncing');
         try {
-            const url = `${state.supabaseUrl}/rest/v1/pimenfx_sync?sync_key=eq.${encodeURIComponent(state.syncKey)}`;
+            const url = `${state.supabaseUrl}/rest/v1/pimenfx_user_data?select=*`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'apikey': state.supabaseKey,
-                    'Authorization': `Bearer ${state.supabaseKey}`
+                    'Authorization': `Bearer ${state.sessionToken}`
                 }
             });
+
+            if (response.status === 401) {
+                alert("Sesi masuk Anda telah berakhir. Silakan masuk kembali.");
+                state.sessionToken = '';
+                saveState(true);
+                showLogin();
+                return;
+            }
 
             if (!response.ok) throw new Error('Fetch failed');
 
@@ -449,18 +719,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data && data.length > 0) {
                 const cloudState = data[0].app_state;
                 
-                // Merge cloud data safely into state
                 state.initialBalance = cloudState.initialBalance || state.initialBalance;
                 state.semester = cloudState.semester || state.semester;
                 state.year = cloudState.year || state.year;
                 state.monthlySettings = cloudState.monthlySettings || state.monthlySettings;
                 state.dailyData = { ...state.dailyData, ...cloudState.dailyData };
                 
-                // Update UI elements to match loaded cloud state
                 elInitialBalance.value = state.initialBalance;
                 elYearInput.value = state.year;
                 
-                saveState(true); // Save local copy without looping upload
+                saveState(true); 
                 updateSemesterUI();
                 calculateCompounding();
                 renderMonthTabs();
@@ -474,7 +742,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function syncPushDebounced() {
-        if (!state.supabaseUrl || !state.supabaseKey || !state.syncKey) {
+        if (!isSupabaseConfigured() || !state.sessionToken || !state.userId) {
             updateSyncStatus('offline');
             return;
         }
@@ -484,19 +752,18 @@ document.addEventListener('DOMContentLoaded', () => {
         
         syncDebounceTimer = setTimeout(async () => {
             try {
-                const url = `${state.supabaseUrl}/rest/v1/pimenfx_sync`;
+                const url = `${state.supabaseUrl}/rest/v1/pimenfx_user_data`;
                 
-                // Upsert to Supabase
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'apikey': state.supabaseKey,
-                        'Authorization': `Bearer ${state.supabaseKey}`,
+                        'Authorization': `Bearer ${state.sessionToken}`,
                         'Content-Type': 'application/json',
                         'Prefer': 'resolution=merge-duplicates'
                     },
                     body: JSON.stringify({
-                        sync_key: state.syncKey,
+                        user_id: state.userId,
                         app_state: {
                             initialBalance: state.initialBalance,
                             semester: state.semester,
@@ -513,7 +780,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Supabase Push Error:', error);
                 updateSyncStatus('error');
             }
-        }, 1500); // 1.5 second delay
+        }, 1500); 
     }
 
     function updateSyncStatus(status) {
@@ -642,6 +909,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Boot Up
-    loadState();
-    initUI();
+    init();
 });

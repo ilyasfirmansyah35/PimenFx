@@ -13,7 +13,78 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-    <div class="dashboard-wrapper">
+    <!-- Login & Register Screen Wrapper -->
+    <div class="login-wrapper" id="loginWrapper">
+        <div class="login-card glass-panel">
+            <div class="login-header">
+                <i data-lucide="trending-up" class="brand-icon-big"></i>
+                <h2>PimenFx</h2>
+                <p>Mulai disiplin trading plan Anda. Silakan masuk atau mendaftar.</p>
+            </div>
+            
+            <!-- Auth Tabs -->
+            <div class="login-tabs">
+                <button class="login-tab-btn active" id="tabLoginBtn">Masuk</button>
+                <button class="login-tab-btn" id="tabRegisterBtn">Daftar</button>
+            </div>
+            
+            <!-- Auth Form -->
+            <form id="authForm" class="auth-form">
+                <div class="drawer-form-group">
+                    <label>Email</label>
+                    <div class="drawer-input-wrapper">
+                        <input type="email" id="authEmail" required placeholder="nama@email.com" />
+                    </div>
+                </div>
+                <div class="drawer-form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label>Password</label>
+                        <a href="#" class="forgot-link" id="forgotPasswordLink">Lupa password?</a>
+                    </div>
+                    <div class="drawer-input-wrapper">
+                        <input type="password" id="authPassword" required placeholder="••••••••" />
+                    </div>
+                </div>
+                
+                <button type="submit" class="primary-btn" id="authSubmitBtn" style="margin-top: 1rem;">
+                    <span>Masuk</span>
+                </button>
+            </form>
+
+            <!-- Reset Password Request Form -->
+            <form id="recoverForm" class="auth-form" style="display: none;">
+                <div class="drawer-form-group">
+                    <label>Email Pemulihan</label>
+                    <div class="drawer-input-wrapper">
+                        <input type="email" id="recoverEmail" required placeholder="nama@email.com" />
+                    </div>
+                </div>
+                <button type="submit" class="primary-btn" style="margin-top: 1rem;">
+                    <span>Kirim Link Reset</span>
+                </button>
+                <button type="button" class="text-btn" id="backToLoginFromRecoverBtn">Kembali ke Login</button>
+            </form>
+
+            <!-- Update Password Form (Fired on redirect recovery link) -->
+            <form id="updatePasswordForm" class="auth-form" style="display: none;">
+                <div class="drawer-form-group">
+                    <label>Password Baru</label>
+                    <div class="drawer-input-wrapper">
+                        <input type="password" id="newPassword" required placeholder="Minimal 8 karakter" />
+                    </div>
+                </div>
+                <button type="submit" class="primary-btn" style="margin-top: 1rem;">
+                    <span>Perbarui Password</span>
+                </button>
+                <button type="button" class="text-btn" id="cancelResetBtn">Batal</button>
+            </form>
+            
+            <div class="auth-message" id="authMessage"></div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Screen Wrapper (Hidden by default) -->
+    <div class="dashboard-wrapper" id="dashboardWrapper" style="display: none;">
         <!-- Top Control Nav Bar -->
         <header class="top-nav glass-panel">
             <div class="nav-brand">
@@ -43,7 +114,10 @@
                 </div>
                 <button class="settings-trigger-btn" id="toggleSettingsBtn">
                     <i data-lucide="sliders"></i>
-                    <span>Atur Target & Pengeluaran</span>
+                    <span>Atur Target</span>
+                </button>
+                <button class="logout-btn" id="logoutBtn" title="Keluar dari Akun PimenFx">
+                    <i data-lucide="log-out"></i>
                 </button>
             </div>
         </header>
@@ -127,33 +201,7 @@
             <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
         </div>
         <div class="drawer-body">
-            <!-- Cloud Connection Settings Section -->
-            <div class="drawer-section">
-                <h4 style="font-size:0.95rem; font-weight:700; color:var(--primary); margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;"><i data-lucide="cloud"></i> Sinkronisasi Cloud</h4>
-                <div class="drawer-input-row" style="display:flex; flex-direction:column; gap:0.85rem;">
-                    <div class="drawer-form-group">
-                        <label>Supabase URL</label>
-                        <div class="drawer-input-wrapper">
-                            <input type="text" id="dbUrl" placeholder="https://xxxx.supabase.co" />
-                        </div>
-                    </div>
-                    <div class="drawer-form-group">
-                        <label>Supabase Anon Key</label>
-                        <div class="drawer-input-wrapper">
-                            <input type="password" id="dbKey" placeholder="eyJhbGciOi..." />
-                        </div>
-                    </div>
-                    <div class="drawer-form-group">
-                        <label>Sync Key (ID Pengguna Unik)</label>
-                        <div class="drawer-input-wrapper">
-                            <input type="text" id="dbSyncKey" placeholder="Contoh: pimen-trading-2026" />
-                        </div>
-                    </div>
-                    <p style="font-size:0.7rem; color:var(--text-secondary); line-height:1.4; margin-top:0.25rem;">
-                        *Masukkan kredensial Supabase yang sama pada perangkat Anda yang lain untuk mengaktifkan sinkronisasi data instan.
-                    </p>
-                </div>
-            </div>
+
             
             <!-- Monthly settings settings -->
             <div class="drawer-section" style="border:none; padding:0; margin:0;">
@@ -162,10 +210,17 @@
                     <!-- Dynamic monthly settings settings -->
                 </div>
             </div>
+
+            <!-- Danger Zone (Data Reset) -->
+            <div class="drawer-section" style="border:none; padding-top:1.5rem; margin-top:1.5rem; border-top:1px solid var(--border-color);">
+                <button class="danger-btn" id="resetDataBtn">
+                    <i data-lucide="trash-2"></i> Reset Rencana & Jurnal
+                </button>
+            </div>
         </div>
         <div class="drawer-footer">
             <button class="primary-btn" id="saveSettingsBtn">
-                <i data-lucide="check-circle"></i> Terapkan & Menyinkronkan
+                <i data-lucide="check-circle"></i> Terapkan & Sinkron
             </button>
         </div>
     </div>
