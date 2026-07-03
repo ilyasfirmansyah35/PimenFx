@@ -637,8 +637,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if(httpStatus===201||httpStatus===200){
             showToast(`✅ INSERT OK! (HTTP ${httpStatus}) Data tersimpan ke Supabase!`,'success');
             updateSyncStatus('synced');
-            // Sync data sesungguhnya
             await syncPushNow();
+        } else if(httpStatus===409){
+            // 409 = row sudah ada = data memang sudah tersimpan sebelumnya!
+            showToast('✅ Data sudah ada di cloud (HTTP 409). Melakukan update...','success');
+            // Lakukan PATCH untuk update data terbaru
+            try{
+                const patchResp=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?user_id=eq.${state.userId}`,{
+                    method:'PATCH',
+                    headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`,'Content-Type':'application/json','Prefer':'return=minimal'},
+                    body:JSON.stringify({app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}})
+                });
+                if(patchResp.ok){
+                    showToast('✅ Update berhasil! Semua data tersinkron.','success');
+                    updateSyncStatus('synced');
+                } else {
+                    const pt=await patchResp.text();
+                    showToast(`❌ PATCH gagal HTTP ${patchResp.status}: ${pt.substring(0,100)}`,'error');
+                }
+            } catch(pe){ showToast(`❌ PATCH error: ${pe.message}`,'error'); }
         } else {
             showToast(`❌ HTTP ${httpStatus}: ${httpBody.substring(0,150)}`,'error');
             updateSyncStatus('error',httpStatus);
