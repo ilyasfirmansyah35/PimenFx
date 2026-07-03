@@ -591,13 +591,31 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.opacity='0';},15000);
     }
 
-    function updateSyncStatus(status,detail=''){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText=detail?`Error ${detail}`:'Error - Klik!';}lucide.createIcons();}
+    function updateSyncStatus(status,detail=''){
+        const el=document.getElementById('syncStatus');
+        if(!el)return;
+        el.className=`sync-status ${status}`;
+        // Lucide replaces <i> dengan <svg> - rebuild <i> setiap kali
+        const oldIcon=el.querySelector('i,svg');
+        const newI=document.createElement('i');
+        if(oldIcon) oldIcon.parentNode.replaceChild(newI,oldIcon);
+        else el.insertBefore(newI,el.firstChild);
+        const text=el.querySelector('span');
+        let iconName,textContent;
+        if(status==='offline'){iconName='cloud-off';textContent='Lokal';}
+        else if(status==='syncing'){iconName='refresh-cw';textContent='Menyinkronkan...';}
+        else if(status==='synced'){iconName='cloud-lightning';textContent='Tersinkron';}
+        else if(status==='error'){iconName='cloud-rain';textContent=detail?`Error ${detail}`:'Error - Klik!';}
+        newI.setAttribute('data-lucide',iconName);
+        if(text)text.innerText=textContent;
+        lucide.createIcons();
+    }
     // Klik sync icon untuk debug / force sync
     document.getElementById('syncStatus').addEventListener('click', async ()=>{
         if(!state.sessionToken){showToast('❌ Belum login!','error');return;}
         if(!state.userId) state.userId=getUserIdFromJWT();
         showToast('⏳ Testing koneksi Supabase...','info');
-        // Test langsung POST ke Supabase dan tampilkan response asli
+        let httpStatus=0, httpBody='';
         try{
             const resp = await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data`,{
                 method:'POST',
@@ -609,16 +627,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body:JSON.stringify({user_id:state.userId,app_state:{test:true,ts:Date.now()}})
             });
-            const body = await resp.text();
-            if(resp.status===201||resp.status===200||resp.ok){
-                showToast(`✅ INSERT OK (${resp.status}) - Sync berhasil!`,'success');
-                updateSyncStatus('synced');
-            } else {
-                showToast(`❌ HTTP ${resp.status}: ${body.substring(0,120)}`,'error');
-                updateSyncStatus('error',resp.status);
-            }
+            httpStatus=resp.status;
+            httpBody=await resp.text();
         } catch(err){
-            showToast(`❌ Network Error: ${err.message}`,'error');
+            showToast(`❌ Fetch gagal: ${err.message}`,'error');
+            return;
+        }
+        // Tampilkan hasil - di luar try agar tidak diinterupsi
+        if(httpStatus===201||httpStatus===200){
+            showToast(`✅ INSERT OK! (HTTP ${httpStatus}) Data tersimpan ke Supabase!`,'success');
+            updateSyncStatus('synced');
+            // Sync data sesungguhnya
+            await syncPushNow();
+        } else {
+            showToast(`❌ HTTP ${httpStatus}: ${httpBody.substring(0,150)}`,'error');
+            updateSyncStatus('error',httpStatus);
         }
     });
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
