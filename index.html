@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.0 -->
+    <!-- Version 3.2.1 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -29,7 +29,7 @@
 body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);color:var(--text-primary);background-image:radial-gradient(circle at 10% 20%,rgba(59,130,246,0.1) 0%,transparent 40%),radial-gradient(circle at 90% 80%,rgba(16,185,129,0.1) 0%,transparent 40%);background-attachment:fixed;min-height:100vh;overflow-y:auto}
 .dashboard-wrapper{max-width:1400px;margin:0 auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;width:100%;overflow-x:hidden}
 .glass-panel{background:var(--bg-panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border-color);border-radius:20px;box-shadow:var(--card-shadow)}
-.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;flex-wrap:wrap;gap:1.25rem}
+.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;gap:.75rem;overflow:hidden}
 .nav-brand{font-family:'Space Grotesk',sans-serif;display:flex;align-items:center;gap:.75rem;font-size:1.75rem;font-weight:700}
 .brand-icon{color:var(--primary);filter:drop-shadow(0 0 8px var(--primary-glow))}
 .nav-controls{display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
@@ -41,7 +41,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);
 .semester-toggle{display:flex;background:rgba(0,0,0,0.3);padding:3px;border-radius:10px;border:1px solid var(--border-color)}
 .sem-btn{background:transparent;border:none;color:var(--text-secondary);padding:.45rem 1rem;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:.85rem;transition:all .3s}
 .sem-btn.active{background:var(--primary);color:#fff;box-shadow:0 2px 10px var(--primary-glow)}
-.settings-trigger-btn{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:var(--primary);padding:.65rem 1.25rem;border-radius:12px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;transition:all .3s;align-self:flex-end}
+.settings-trigger-btn{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:var(--primary);padding:.65rem 1.25rem;border-radius:12px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;transition:all .3s;flex-shrink:0;white-space:nowrap}
 .settings-trigger-btn:hover{background:var(--primary);color:#fff;box-shadow:0 4px 15px var(--primary-glow);transform:translateY(-1px)}
 .month-tabs-bar{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.25rem}
 .month-tabs-bar::-webkit-scrollbar{height:4px}
@@ -182,8 +182,16 @@ tr:last-child td{border-bottom:none}
     .tab-month-name{font-size:.8rem}
     .tab-month-sub{font-size:.6rem}
     .title-section h2{font-size:1.15rem}
-    th,td{padding:.65rem .75rem;font-size:.8rem}
-    .journal-input{min-width:160px;font-size:.75rem}
+    th,td{padding:.5rem .6rem;font-size:.75rem}
+    .journal-input{min-width:140px;font-size:.75rem}
+}
+@media(max-width:480px){
+    /* Sembunyikan teks "Pengaturan" - tampilkan ikon saja agar tidak terpotong */
+    .settings-trigger-btn span{display:none}
+    .settings-trigger-btn{padding:.5rem .65rem;border-radius:10px}
+    .nav-brand{font-size:1.1rem;gap:.4rem}
+    .sync-status span{display:none}
+    .sync-status{padding:.2rem .35rem}
 }
     </style>
 </head>
@@ -308,13 +316,13 @@ tr:last-child td{border-bottom:none}
                 <table>
                     <thead>
                         <tr>
-                            <th width="80">Done</th>
-                            <th width="150">Tanggal</th>
-                            <th width="150">Hari</th>
-                            <th width="200">Saldo Awal</th>
-                            <th width="200">Target Profit</th>
-                            <th width="200">Saldo Akhir</th>
-                            <th>Jurnal Catatan</th>
+                            <th style="width:50px;min-width:50px;">Done</th>
+                            <th style="width:100px;min-width:90px;">Tanggal</th>
+                            <th style="width:80px;min-width:70px;">Hari</th>
+                            <th style="width:145px;min-width:130px;">Saldo Awal</th>
+                            <th style="width:145px;min-width:130px;">Target Profit</th>
+                            <th style="width:145px;min-width:130px;">Saldo Akhir</th>
+                            <th style="min-width:150px;">Jurnal Catatan</th>
                         </tr>
                     </thead>
                     <tbody id="tradingTableBody"></tbody>
@@ -325,9 +333,16 @@ tr:last-child td{border-bottom:none}
 
     <!-- Settings Drawer -->
     <div class="settings-drawer" id="settingsDrawer">
-        <div class="drawer-header">
-            <h3><i data-lucide="settings"></i> Pengaturan</h3>
-            <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
+        <div class="drawer-header" style="flex-direction:column;align-items:stretch;gap:.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3><i data-lucide="settings"></i> Pengaturan</h3>
+                <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
+            </div>
+            <div id="drawerUserInfo" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:.5rem .75rem;display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-secondary);">
+                <i data-lucide="user-circle" style="width:16px;height:16px;color:var(--primary);flex-shrink:0;"></i>
+                <span id="drawerUserEmail" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">-</span>
+            </div>
+        </div>
         </div>
         <div class="drawer-body">
             <!-- Section 1: Rencana Utama -->
@@ -505,10 +520,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const accessToken=params.get('access_token');
             if(accessToken){state.sessionToken=accessToken;window.history.replaceState("",document.title,window.location.pathname);showLogin();elAuthForm.style.display='none';elRecoverForm.style.display='none';elLoginTabs.style.display='none';elUpdatePasswordForm.style.display='flex';displayAuthMessage('Silakan masukkan password baru Anda.','success');return;}
         }
-        if(state.sessionToken&&isSupabaseConfigured()){showDashboard();await syncPull();}
+        if(state.sessionToken&&isSupabaseConfigured()){
+            showDashboard();
+            await syncPull();
+            // Auto-sync setiap 30 detik
+            setInterval(()=>{ if(state.sessionToken&&isSupabaseConfigured()) syncPull(); }, 30000);
+        }
         else{showLogin();}
     }
-    function showDashboard(){elLoginWrapper.style.display='none';elDashboardWrapper.style.display='flex';elInitialBalance.value=state.initialBalance;elYearInput.value=state.year;updateSemesterUI();calculateCompounding();renderMonthTabs();renderActiveMonthDashboard();}
+    function showDashboard(){
+        elLoginWrapper.style.display='none';
+        elDashboardWrapper.style.display='flex';
+        elInitialBalance.value=state.initialBalance;
+        elYearInput.value=state.year;
+        updateSemesterUI();
+        calculateCompounding();
+        renderMonthTabs();
+        renderActiveMonthDashboard();
+        // Tampilkan email user di drawer
+        const elEmail=document.getElementById('drawerUserEmail');
+        if(elEmail) elEmail.textContent=state.userEmail||'Akun aktif';
+    }
     function showLogin(){elDashboardWrapper.style.display='none';elLoginWrapper.style.display='flex';updateSyncStatus('offline');lucide.createIcons();}
     elTabLoginBtn.addEventListener('click',()=>{authMode='login';elTabLoginBtn.classList.add('active');elTabRegisterBtn.classList.remove('active');elAuthSubmitBtn.querySelector('span').innerText='Masuk';elAuthMessage.innerText='';elAuthMessage.className='auth-message';});
     elTabRegisterBtn.addEventListener('click',()=>{authMode='register';elTabRegisterBtn.classList.add('active');elTabLoginBtn.classList.remove('active');elAuthSubmitBtn.querySelector('span').innerText='Daftar Akun';elAuthMessage.innerText='';elAuthMessage.className='auth-message';});
@@ -642,20 +674,25 @@ document.addEventListener('DOMContentLoaded', () => {
     elBtnSem2.addEventListener('click',()=>{state.semester=2;validateActiveMonth();updateSemesterUI();renderDrawerSettings();calculateCompounding();renderMonthTabs();renderActiveMonthDashboard();saveState();});
     async function syncPull(){
         if(!isSupabaseConfigured()||!state.sessionToken){updateSyncStatus('offline');return;}
+        // Pastikan userId tersedia sebelum pull
+        if(!state.userId) state.userId=getUserIdFromJWT();
+        if(!state.userId){updateSyncStatus('error');return;}
         updateSyncStatus('syncing');
         try{
-            const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?select=*`,{method:'GET',headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`}});
-            if(r.status===401){alert("Sesi berakhir. Silakan masuk kembali.");state.sessionToken='';saveState(true);showLogin();return;}
+            // KRITIS: filter by user_id agar data setiap akun terpisah
+            const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?user_id=eq.${state.userId}&select=*`,{method:'GET',headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`}});
+            if(r.status===401){state.sessionToken='';saveState(true);showLogin();return;}
             if(!r.ok)throw new Error('Fetch failed');
             const data=await r.json();
             if(data&&data.length>0){
-                // Cloud punya data - ambil dan tampilkan
+                // Cloud punya data milik user ini - ambil dan tampilkan
                 const cs=data[0].app_state;
                 state.initialBalance=cs.initialBalance||state.initialBalance;
                 state.semester=cs.semester||state.semester;
                 state.year=cs.year||state.year;
                 state.monthlySettings=cs.monthlySettings||state.monthlySettings;
-                state.dailyData={...state.dailyData,...cs.dailyData};
+                // Hanya merge dailyData dari cloud (TIDAK campur dengan user lain)
+                state.dailyData=cs.dailyData||{};
                 elInitialBalance.value=state.initialBalance;
                 elYearInput.value=state.year;
                 saveState(true);
@@ -665,7 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderActiveMonthDashboard();
                 updateSyncStatus('synced');
             } else {
-                // Cloud kosong - push data lokal ke cloud sekarang
+                // Cloud kosong untuk user ini - push data lokal ke cloud
                 updateSyncStatus('syncing');
                 await syncPushNow();
             }
