@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.1.9 -->
+    <!-- Version 3.2.0 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -524,10 +524,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const r=await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
                 const data=await r.json();
                 if(!r.ok){
-                    const msg=data.error_description||data.message||data.error||'Login gagal.';
-                    if(msg.toLowerCase().includes('invalid login')||msg.toLowerCase().includes('invalid credentials')){throw new Error('Email atau password salah.');}
+                    const msg=data.error_description||data.message||data.error||'';
                     if(msg.toLowerCase().includes('email not confirmed')){throw new Error('Email belum dikonfirmasi. Cek inbox email Anda.');}
-                    throw new Error(msg);
+                    // Semua error login = password/email salah
+                    throw new Error('Email atau password salah.');
                 }
                 state.sessionToken=data.access_token;state.userId=data.user.id;state.userEmail=data.user.email;saveState(true);
                 displayAuthMessage('Login berhasil! Mengunduh data...','success');showDashboard();await syncPull();
@@ -587,7 +587,16 @@ document.addEventListener('DOMContentLoaded', () => {
         catch(err){displayAuthMessage(err.message,'error');}
     });
     function displayAuthMessage(msg,type){elAuthMessage.innerText=msg;elAuthMessage.className=`auth-message ${type}`;}
-    elLogoutBtn.addEventListener('click',()=>{state.sessionToken='';state.userId='';state.userEmail='';saveState(true);showLogin();});
+    elLogoutBtn.addEventListener('click',()=>{
+        state.sessionToken='';state.userId='';state.userEmail='';
+        saveState(true);
+        // Tutup settings drawer dan overlay sebelum kembali ke login
+        const drawer=document.getElementById('settingsDrawer');
+        const overlay=document.getElementById('drawerOverlay');
+        if(drawer) drawer.classList.remove('open');
+        if(overlay) overlay.classList.remove('visible');
+        showLogin();
+    });
     elResetDataBtn.addEventListener('click',()=>{if(confirm("Yakin ingin menghapus seluruh centang harian dan jurnal?")){state.dailyData={};calculateCompounding();renderActiveMonthDashboard();saveState();closeDrawer();alert("Data direset!");}});
     function updateSemesterUI(){if(state.semester===1){elBtnSem1.classList.add('active');elBtnSem2.classList.remove('active');}else{elBtnSem2.classList.add('active');elBtnSem1.classList.remove('active');}}
     function calculateCompounding(){
