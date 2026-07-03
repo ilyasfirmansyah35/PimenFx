@@ -583,16 +583,26 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSyncStatus('syncing');clearTimeout(syncDebounceTimer);
         syncDebounceTimer=setTimeout(()=>syncPushNow(),1500);
     }
-    function updateSyncStatus(status){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText='Error - Klik!';}lucide.createIcons();}
+    function showToast(msg, type='info'){
+        let t=document.getElementById('syncToast');
+        if(!t){t=document.createElement('div');t.id='syncToast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:14px 24px;border-radius:12px;font-size:.9rem;font-weight:600;z-index:9999;max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .3s';document.body.appendChild(t);}
+        t.style.background=type==='error'?'rgba(244,63,94,.9)':type==='success'?'rgba(16,185,129,.9)':'rgba(59,130,246,.9)';
+        t.style.color='#fff';t.innerText=msg;t.style.opacity='1';
+        clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.opacity='0';},6000);
+    }
+
+    function updateSyncStatus(status,detail=''){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText=detail?`Error ${detail}`:'Error - Klik!';}lucide.createIcons();}
     // Klik sync icon untuk debug / force sync
     document.getElementById('syncStatus').addEventListener('click', async ()=>{
         const uid = state.userId || getUserIdFromJWT();
-        const cfg = isSupabaseConfigured();
-        const tok = state.sessionToken ? state.sessionToken.substring(0,20)+'...' : 'KOSONG';
-        alert(`DEBUG INFO:\n- Supabase: ${cfg?'OK':'TIDAK TERKONFIGURASI'}\n- Session Token: ${tok}\n- User ID: ${uid||'KOSONG'}\n\nMencoba sync sekarang...`);
-        if(cfg && state.sessionToken){
+        showToast(`Supabase: ${isSupabaseConfigured()?'OK':'NO'} | Token: ${state.sessionToken?'Ada':'Kosong'} | UID: ${uid?uid.substring(0,8)+'...':'Kosong'}`, 'info');
+        if(isSupabaseConfigured() && state.sessionToken){
             const result = await syncPushNow();
-            alert(`Hasil sync: ${result||'Sukses!'}`); 
+            if(result==='OK'||!result){
+                showToast('✅ Sync berhasil! Data tersimpan ke cloud.', 'success');
+            } else {
+                showToast('❌ Error: '+result, 'error');
+            }
         }
     });
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
