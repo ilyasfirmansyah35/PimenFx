@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -29,7 +29,7 @@
 body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);color:var(--text-primary);background-image:radial-gradient(circle at 10% 20%,rgba(59,130,246,0.1) 0%,transparent 40%),radial-gradient(circle at 90% 80%,rgba(16,185,129,0.1) 0%,transparent 40%);background-attachment:fixed;min-height:100vh;overflow-y:auto}
 .dashboard-wrapper{max-width:1400px;margin:0 auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;width:100%;overflow-x:clip}
 .glass-panel{background:var(--bg-panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border-color);border-radius:20px;box-shadow:var(--card-shadow)}
-.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;gap:.75rem;overflow:visible}
+.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;gap:.75rem;overflow:visible;position:relative;z-index:1000}
 .nav-brand{font-family:'Space Grotesk',sans-serif;display:flex;align-items:center;gap:.75rem;font-size:1.75rem;font-weight:700}
 .brand-icon{color:var(--primary);filter:drop-shadow(0 0 8px var(--primary-glow))}
 .nav-controls{display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
@@ -190,7 +190,7 @@ tr:last-child td{border-bottom:none}
     .header-badges{width:100%;display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}
     .header-badges .export-btn,.header-badges .info-badge{font-size:.7rem;padding:.4rem;justify-content:center;margin:0;width:100%!important;display:flex!important}
     .header-badges .info-badge{grid-column:span 2}
-    .table-responsive{max-width:100%!important;width:100%!important;overflow-x:auto!important}
+    .table-responsive{max-width:100%!important;width:100%!important;overflow-x:hidden!important}
 }
 @media(max-width:580px){
     .metrics-grid{grid-template-columns:repeat(2,1fr);gap:.4rem}
@@ -202,7 +202,7 @@ tr:last-child td{border-bottom:none}
     .tab-month-name{font-size:.8rem}
     .tab-month-sub{font-size:.6rem}
     .title-section h2{font-size:1.15rem}
-    table{table-layout:fixed;width:100%}
+    table{table-layout:fixed;width:100%;min-width:0!important}
     th:nth-child(1),td:nth-child(1){width:42px!important;min-width:42px!important;padding:.5rem .35rem}
     th:nth-child(2),td:nth-child(2){width:68px!important;min-width:68px!important;padding:.5rem .3rem;font-size:.72rem}
     th:nth-child(3),td:nth-child(3){width:62px!important;min-width:62px!important;padding:.5rem .3rem;font-size:.72rem}
@@ -219,8 +219,6 @@ tr:last-child td{border-bottom:none}
     .settings-trigger-btn span{display:none}
     .settings-trigger-btn{padding:.5rem .65rem;border-radius:10px}
     .nav-brand{font-size:1.1rem;gap:.4rem}
-    /* Gunakan position:fixed agar dropdown akun tidak terpotong oleh overflow parent */
-    .account-dropdown{position:fixed;top:68px;right:.75rem;left:.75rem;min-width:0}
     .sync-status span{display:none}
     .sync-status{padding:.2rem .35rem}
 }
