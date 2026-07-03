@@ -533,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.userId=getUserIdFromJWT();
             if(state.userId) saveState(true);
         }
-        if(!state.userId){updateSyncStatus('error');return;}
+        if(!state.userId){updateSyncStatus('error','no-uid');return 'userId kosong';}
 
         const appState={initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData};
         const authHeaders={
@@ -588,21 +588,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!t){t=document.createElement('div');t.id='syncToast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:14px 24px;border-radius:12px;font-size:.9rem;font-weight:600;z-index:9999;max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .3s';document.body.appendChild(t);}
         t.style.background=type==='error'?'rgba(244,63,94,.9)':type==='success'?'rgba(16,185,129,.9)':'rgba(59,130,246,.9)';
         t.style.color='#fff';t.innerText=msg;t.style.opacity='1';
-        clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.opacity='0';},6000);
+        clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.opacity='0';},15000);
     }
 
     function updateSyncStatus(status,detail=''){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText=detail?`Error ${detail}`:'Error - Klik!';}lucide.createIcons();}
     // Klik sync icon untuk debug / force sync
     document.getElementById('syncStatus').addEventListener('click', async ()=>{
-        const uid = state.userId || getUserIdFromJWT();
-        showToast(`Supabase: ${isSupabaseConfigured()?'OK':'NO'} | Token: ${state.sessionToken?'Ada':'Kosong'} | UID: ${uid?uid.substring(0,8)+'...':'Kosong'}`, 'info');
-        if(isSupabaseConfigured() && state.sessionToken){
-            const result = await syncPushNow();
-            if(result==='OK'||!result){
-                showToast('✅ Sync berhasil! Data tersimpan ke cloud.', 'success');
+        if(!state.sessionToken){showToast('❌ Belum login!','error');return;}
+        if(!state.userId) state.userId=getUserIdFromJWT();
+        showToast('⏳ Testing koneksi Supabase...','info');
+        // Test langsung POST ke Supabase dan tampilkan response asli
+        try{
+            const resp = await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data`,{
+                method:'POST',
+                headers:{
+                    'apikey':state.supabaseKey,
+                    'Authorization':`Bearer ${state.sessionToken}`,
+                    'Content-Type':'application/json',
+                    'Prefer':'return=minimal'
+                },
+                body:JSON.stringify({user_id:state.userId,app_state:{test:true,ts:Date.now()}})
+            });
+            const body = await resp.text();
+            if(resp.status===201||resp.status===200||resp.ok){
+                showToast(`✅ INSERT OK (${resp.status}) - Sync berhasil!`,'success');
+                updateSyncStatus('synced');
             } else {
-                showToast('❌ Error: '+result, 'error');
+                showToast(`❌ HTTP ${resp.status}: ${body.substring(0,120)}`,'error');
+                updateSyncStatus('error',resp.status);
             }
+        } catch(err){
+            showToast(`❌ Network Error: ${err.message}`,'error');
         }
     });
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
