@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.2 -->
+    <!-- Version 3.2.3 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -27,9 +27,9 @@
 :root{--bg-main:#05070f;--bg-panel:rgba(13,17,30,0.75);--bg-card:rgba(22,28,49,0.6);--primary:#3b82f6;--primary-glow:rgba(59,130,246,0.4);--profit:#10b981;--profit-glow:rgba(16,185,129,0.3);--danger:#f43f5e;--text-primary:#f8fafc;--text-secondary:#94a3b8;--border-color:rgba(255,255,255,0.06);--border-highlight:rgba(255,255,255,0.15);--card-shadow:0 10px 30px rgba(0,0,0,0.3)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);color:var(--text-primary);background-image:radial-gradient(circle at 10% 20%,rgba(59,130,246,0.1) 0%,transparent 40%),radial-gradient(circle at 90% 80%,rgba(16,185,129,0.1) 0%,transparent 40%);background-attachment:fixed;min-height:100vh;overflow-y:auto}
-.dashboard-wrapper{max-width:1400px;margin:0 auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;width:100%;overflow-x:hidden}
+.dashboard-wrapper{max-width:1400px;margin:0 auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;width:100%;overflow-x:clip}
 .glass-panel{background:var(--bg-panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border-color);border-radius:20px;box-shadow:var(--card-shadow)}
-.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;gap:.75rem;overflow:hidden}
+.top-nav{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 2rem;gap:.75rem;overflow:visible}
 .nav-brand{font-family:'Space Grotesk',sans-serif;display:flex;align-items:center;gap:.75rem;font-size:1.75rem;font-weight:700}
 .brand-icon{color:var(--primary);filter:drop-shadow(0 0 8px var(--primary-glow))}
 .nav-controls{display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
@@ -202,8 +202,16 @@ tr:last-child td{border-bottom:none}
     .tab-month-name{font-size:.8rem}
     .tab-month-sub{font-size:.6rem}
     .title-section h2{font-size:1.15rem}
-    th,td{padding:.5rem .6rem;font-size:.75rem}
-    .journal-input{min-width:140px;font-size:.75rem}
+    table{table-layout:fixed;width:100%}
+    th:nth-child(1),td:nth-child(1){width:42px!important;min-width:42px!important;padding:.5rem .35rem}
+    th:nth-child(2),td:nth-child(2){width:68px!important;min-width:68px!important;padding:.5rem .3rem;font-size:.72rem}
+    th:nth-child(3),td:nth-child(3){width:62px!important;min-width:62px!important;padding:.5rem .3rem;font-size:.72rem}
+    th:nth-child(4),td:nth-child(4){padding:.5rem .4rem;font-size:.72rem}
+    th{font-size:.68rem;padding:.5rem .35rem}
+    .detail-panel{gap:.5rem .75rem;padding:.6rem .75rem .75rem}
+    .detail-cell .dval{font-size:.8rem}
+    .detail-journal{min-width:160px}
+    .journal-input{font-size:.75rem;min-width:130px}
 }
 @media(max-width:480px){
     /* Sembunyikan teks "Pengaturan" - tampilkan ikon saja agar tidak terpotong */
@@ -425,6 +433,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const SEMESTER_1=[0,1,2,3,4,5];
     const SEMESTER_2=[6,7,8,9,10,11];
     const MONTH_NAMES=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+    const SHORT_MONTH=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"];
+    const SHORT_DAY={"Senin":"Sen","Selasa":"Sel","Rabu":"Rab","Kamis":"Kam","Jumat":"Jum"};
     let state={initialBalance:10000000,semester:2,year:2026,activeMonth:6,monthlySettings:{},dailyData:{},supabaseUrl:SUPABASE_URL,supabaseKey:SUPABASE_KEY,sessionToken:'',userId:'',userEmail:''};
     let calculatedSemesterData={};
     let syncDebounceTimer;
@@ -668,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for(let d=1;d<=dim;d++){const dObj=new Date(state.year,m,d);const dow=dObj.getDay();if(dow===0||dow===6)continue;
                 const ds=`${state.year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const dn=dObj.toLocaleDateString('id-ID',{weekday:'long'});const dd=state.dailyData[ds]||{done:false,journal:''};
                 const sa=rb;const profit=sa*tp;const akhir=sa+profit;
-                rows.push({dateStr:ds,dateLabel:`${d} ${MONTH_NAMES[m]}`,dayName:dn,saldoAwal:sa,targetProfit:profit,saldoAkhir:akhir,done:dd.done,journal:(dd.journal==='undefined'||!dd.journal)?'':dd.journal});
+                rows.push({dateStr:ds,dateLabel:`${d} ${MONTH_NAMES[m]}`,dateShort:`${d} ${SHORT_MONTH[m]}`,dayName:dn,dayShort:SHORT_DAY[dn]||dn.substring(0,3),saldoAwal:sa,targetProfit:profit,saldoAkhir:akhir,done:dd.done,journal:(dd.journal==='undefined'||!dd.journal)?'':dd.journal});
                 rb=akhir;}
             if(exp>0)rb-=exp;
             calculatedSemesterData[m]={startBalance:msb,endBalance:rb,expense:exp,targetPct:set.targetPct,dailyRows:rows};
@@ -687,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Baris kompak (tampil default)
             const tr=document.createElement('tr');
             tr.className=`compact-row${row.done?' row-done':''}`;
-            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td>${row.dateLabel}</td><td>${row.dayName}</td><td class="amount profit"><div style="display:flex;align-items:center;justify-content:space-between;gap:.25rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
+            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td title="${row.dateLabel}">${row.dateShort}</td><td title="${row.dayName}">${row.dayShort}</td><td class="amount profit"><div style="display:flex;align-items:center;justify-content:space-between;gap:.25rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
             elTradingTableBody.appendChild(tr);
             // Baris detail (tersembunyi, muncul saat diklik)
             const dr=document.createElement('tr');
