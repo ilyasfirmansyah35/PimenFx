@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PimenFx - Trading Compounding Plan</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#05070f">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS for Excel Exports -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <!-- Top Control Nav Bar -->
+        <header class="top-nav glass-panel">
+            <div class="nav-brand">
+                <i data-lucide="trending-up" class="brand-icon"></i>
+                <span>PimenFx</span>
+            </div>
+            
+            <div class="nav-controls">
+                <div class="control-group">
+                    <label>Modal Awal (Rp)</label>
+                    <input type="number" id="initialBalance" placeholder="Modal Awal" />
+                </div>
+                <div class="control-group">
+                    <label>Semester</label>
+                    <div class="semester-toggle">
+                        <button id="btnSem1" class="sem-btn">Semester 1 (Jan-Jun)</button>
+                        <button id="btnSem2" class="sem-btn">Semester 2 (Jul-Des)</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Tahun</label>
+                    <input type="number" id="yearInput" value="2026" class="year-input" />
+                </div>
+                <button class="settings-trigger-btn" id="toggleSettingsBtn">
+                    <i data-lucide="sliders"></i>
+                    <span>Atur Target & Pengeluaran</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Month Navigation Tabs -->
+        <div class="month-tabs-bar" id="monthTabs">
+            <!-- Dynamic tabs are injected here -->
+        </div>
+
+        <!-- Metric Summary Cards -->
+        <div class="metrics-grid">
+            <div class="metric-card glass-panel">
+                <div class="metric-info">
+                    <span class="metric-label">Saldo Awal Bulan</span>
+                    <h3 id="metricStartBalance" class="amount">Rp 0</h3>
+                </div>
+                <div class="metric-icon green"><i data-lucide="wallet"></i></div>
+            </div>
+            <div class="metric-card glass-panel">
+                <div class="metric-info">
+                    <span class="metric-label">Target Harian (%)</span>
+                    <h3 id="metricTargetPct" class="amount">0%</h3>
+                </div>
+                <div class="metric-icon blue"><i data-lucide="percent"></i></div>
+            </div>
+            <div class="metric-card glass-panel">
+                <div class="metric-info">
+                    <span class="metric-label">Pengeluaran Hidup</span>
+                    <h3 id="metricExpense" class="amount">Rp 0</h3>
+                </div>
+                <div class="metric-icon red"><i data-lucide="arrow-down-right"></i></div>
+            </div>
+            <div class="metric-card glass-panel highlight">
+                <div class="metric-info">
+                    <span class="metric-label">Estimasi Akhir Bulan</span>
+                    <h3 id="metricEndBalance" class="amount">Rp 0</h3>
+                </div>
+                <div class="metric-icon gold"><i data-lucide="coins"></i></div>
+            </div>
+        </div>
+
+        <!-- Main Compounding Grid Table -->
+        <div class="table-card glass-panel">
+            <div class="table-card-header">
+                <div class="title-section">
+                    <h2 id="activeMonthTitle">Juli 2026</h2>
+                    <p class="subtitle">Disiplin kunci kesuksesan. Trading hanya aktif Senin - Jumat (XAUUSD).</p>
+                </div>
+                <div class="header-badges">
+                    <button class="export-btn pdf" id="exportPdfBtn"><i data-lucide="file-text"></i> PDF</button>
+                    <button class="export-btn excel" id="exportExcelMonthBtn"><i data-lucide="file-spreadsheet"></i> Excel Bulan Ini</button>
+                    <button class="export-btn excel" id="exportExcelSemesterBtn"><i data-lucide="file-spreadsheet"></i> Excel Semester</button>
+                    <span class="info-badge"><i data-lucide="calendar"></i> Senin - Jumat</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="80">Done</th>
+                            <th width="150">Tanggal</th>
+                            <th width="150">Hari</th>
+                            <th width="200">Saldo Awal</th>
+                            <th width="200">Target Profit</th>
+                            <th width="200">Saldo Akhir</th>
+                            <th>Jurnal Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradingTableBody">
+                        <!-- Dynamic rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side Sliding Drawer for Settings -->
+    <div class="settings-drawer" id="settingsDrawer">
+        <div class="drawer-header">
+            <h3><i data-lucide="sliders"></i> Pengaturan Bulanan</h3>
+            <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
+        </div>
+        <div class="drawer-body" id="drawerSettingsList">
+            <!-- Dynamic settings fields injected here -->
+        </div>
+        <div class="drawer-footer">
+            <button class="primary-btn" id="saveSettingsBtn">
+                <i data-lucide="check-circle"></i> Terapkan & Kalkulasi Ulang
+            </button>
+        </div>
+    </div>
+    
+    <!-- Drawer Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
