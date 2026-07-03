@@ -485,20 +485,57 @@ document.addEventListener('DOMContentLoaded', () => {
     async function syncPull(){
         if(!isSupabaseConfigured()||!state.sessionToken){updateSyncStatus('offline');return;}
         updateSyncStatus('syncing');
-        try{const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?select=*`,{method:'GET',headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`}});
+        try{
+            const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?select=*`,{method:'GET',headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`}});
             if(r.status===401){alert("Sesi berakhir. Silakan masuk kembali.");state.sessionToken='';saveState(true);showLogin();return;}
             if(!r.ok)throw new Error('Fetch failed');
-            const data=await r.json();if(data&&data.length>0){const cs=data[0].app_state;state.initialBalance=cs.initialBalance||state.initialBalance;state.semester=cs.semester||state.semester;state.year=cs.year||state.year;state.monthlySettings=cs.monthlySettings||state.monthlySettings;state.dailyData={...state.dailyData,...cs.dailyData};elInitialBalance.value=state.initialBalance;elYearInput.value=state.year;saveState(true);updateSemesterUI();calculateCompounding();renderMonthTabs();renderActiveMonthDashboard();}
-            updateSyncStatus('synced');}
-        catch(err){console.error('Pull Error:',err);updateSyncStatus('error');}
+            const data=await r.json();
+            if(data&&data.length>0){
+                // Cloud punya data - ambil dan tampilkan
+                const cs=data[0].app_state;
+                state.initialBalance=cs.initialBalance||state.initialBalance;
+                state.semester=cs.semester||state.semester;
+                state.year=cs.year||state.year;
+                state.monthlySettings=cs.monthlySettings||state.monthlySettings;
+                state.dailyData={...state.dailyData,...cs.dailyData};
+                elInitialBalance.value=state.initialBalance;
+                elYearInput.value=state.year;
+                saveState(true);
+                updateSemesterUI();
+                calculateCompounding();
+                renderMonthTabs();
+                renderActiveMonthDashboard();
+                updateSyncStatus('synced');
+            } else {
+                // Cloud kosong - push data lokal ke cloud sekarang
+                updateSyncStatus('syncing');
+                await syncPushNow();
+            }
+        } catch(err){console.error('Pull Error:',err);updateSyncStatus('error');}
     }
+    // Push langsung (tanpa debounce) - dipakai saat login pertama
+    async function syncPushNow(){
+        if(!isSupabaseConfigured()||!state.sessionToken||!state.userId){updateSyncStatus('offline');return;}
+        try{
+            const payload={user_id:state.userId,app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}};
+            const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data`,{
+                method:'POST',
+                headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`,'Content-Type':'application/json','Prefer':'return=minimal,resolution=merge-duplicates'},
+                body:JSON.stringify(payload)
+            });
+            if(!r.ok){
+                const errText=await r.text();
+                throw new Error(`Push failed: ${errText}`);
+            }
+            updateSyncStatus('synced');
+        } catch(err){console.error('Push Error:',err);updateSyncStatus('error');}
+    }
+
+    // Push dengan debounce 1.5 detik (dipakai saat ada perubahan data)
     function syncPushDebounced(){
         if(!isSupabaseConfigured()||!state.sessionToken||!state.userId){updateSyncStatus('offline');return;}
         updateSyncStatus('syncing');clearTimeout(syncDebounceTimer);
-        syncDebounceTimer=setTimeout(async()=>{
-            try{const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data`,{method:'POST',headers:{'apikey':state.supabaseKey,'Authorization':`Bearer ${state.sessionToken}`,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify({user_id:state.userId,app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}})});if(!r.ok)throw new Error('Push failed');updateSyncStatus('synced');}
-            catch(err){console.error('Push Error:',err);updateSyncStatus('error');}
-        },1500);
+        syncDebounceTimer=setTimeout(()=>syncPushNow(),1500);
     }
     function updateSyncStatus(status){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText='Error Koneksi';}lucide.createIcons();}
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
