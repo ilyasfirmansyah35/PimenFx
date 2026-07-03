@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.1.8 -->
+    <!-- Version 3.1.9 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -532,8 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.sessionToken=data.access_token;state.userId=data.user.id;state.userEmail=data.user.email;saveState(true);
                 displayAuthMessage('Login berhasil! Mengunduh data...','success');showDashboard();await syncPull();
             }else{
-                const siteUrl=window.location.origin+window.location.pathname;
-                const r=await fetch(`${state.supabaseUrl}/auth/v1/signup`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password,options:{emailRedirectTo:siteUrl}})});
+                const siteUrl='https://ilyasfirmansyah35.github.io/PimenFx/';
+                const r=await fetch(`${state.supabaseUrl}/auth/v1/signup?redirect_to=${encodeURIComponent(siteUrl)}`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
                 const data=await r.json();
                 if(!r.ok){
                     const code=data.error_code||data.error||'';
@@ -560,11 +560,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!email){displayAuthMessage('Masukkan alamat email terlebih dahulu.','error');return;}
         displayAuthMessage('Sedang mengirim email pemulihan...','success');
         try{
-            const redirectTo = window.location.origin + window.location.pathname;
-            const r=await fetch(`${state.supabaseUrl}/auth/v1/recover`,{
+            const redirectTo='https://ilyasfirmansyah35.github.io/PimenFx/';
+            const r=await fetch(`${state.supabaseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,{
                 method:'POST',
                 headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},
-                body:JSON.stringify({email, redirect_to: redirectTo})
+                body:JSON.stringify({email})
             });
             const data = await r.json().catch(()=>({}));
             if(!r.ok){
