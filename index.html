@@ -19,6 +19,10 @@
             <div class="nav-brand">
                 <i data-lucide="trending-up" class="brand-icon"></i>
                 <span>PimenFx</span>
+                <div class="sync-status offline" id="syncStatus" title="Status Sinkronisasi Cloud">
+                    <i data-lucide="cloud-off"></i>
+                    <span>Lokal</span>
+                </div>
             </div>
             
             <div class="nav-controls">
@@ -119,15 +123,49 @@
     <!-- Right Side Sliding Drawer for Settings -->
     <div class="settings-drawer" id="settingsDrawer">
         <div class="drawer-header">
-            <h3><i data-lucide="sliders"></i> Pengaturan Bulanan</h3>
+            <h3><i data-lucide="sliders"></i> Pengaturan</h3>
             <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
         </div>
-        <div class="drawer-body" id="drawerSettingsList">
-            <!-- Dynamic settings fields injected here -->
+        <div class="drawer-body">
+            <!-- Cloud Connection Settings Section -->
+            <div class="drawer-section">
+                <h4 style="font-size:0.95rem; font-weight:700; color:var(--primary); margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;"><i data-lucide="cloud"></i> Sinkronisasi Cloud</h4>
+                <div class="drawer-input-row" style="display:flex; flex-direction:column; gap:0.85rem;">
+                    <div class="drawer-form-group">
+                        <label>Supabase URL</label>
+                        <div class="drawer-input-wrapper">
+                            <input type="text" id="dbUrl" placeholder="https://xxxx.supabase.co" />
+                        </div>
+                    </div>
+                    <div class="drawer-form-group">
+                        <label>Supabase Anon Key</label>
+                        <div class="drawer-input-wrapper">
+                            <input type="password" id="dbKey" placeholder="eyJhbGciOi..." />
+                        </div>
+                    </div>
+                    <div class="drawer-form-group">
+                        <label>Sync Key (ID Pengguna Unik)</label>
+                        <div class="drawer-input-wrapper">
+                            <input type="text" id="dbSyncKey" placeholder="Contoh: pimen-trading-2026" />
+                        </div>
+                    </div>
+                    <p style="font-size:0.7rem; color:var(--text-secondary); line-height:1.4; margin-top:0.25rem;">
+                        *Masukkan kredensial Supabase yang sama pada perangkat Anda yang lain untuk mengaktifkan sinkronisasi data instan.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Monthly settings settings -->
+            <div class="drawer-section" style="border:none; padding:0; margin:0;">
+                <h4 style="font-size:0.95rem; font-weight:700; color:var(--primary); margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;"><i data-lucide="calendar"></i> Target & Pengeluaran Bulanan</h4>
+                <div id="drawerSettingsList" class="setting-inputs" style="gap:1.25rem;">
+                    <!-- Dynamic monthly settings settings -->
+                </div>
+            </div>
         </div>
         <div class="drawer-footer">
             <button class="primary-btn" id="saveSettingsBtn">
-                <i data-lucide="check-circle"></i> Terapkan & Kalkulasi Ulang
+                <i data-lucide="check-circle"></i> Terapkan & Menyinkronkan
             </button>
         </div>
     </div>

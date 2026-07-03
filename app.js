@@ -3,21 +3,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Constants
     const SEMESTER_1 = [0, 1, 2, 3, 4, 5]; // Jan - Jun
-    const SEMESTER_2 = [6, 7, 8, 9, 10, 11]; // Jul - Dec
+    const SEMESTER_2 = [6, 7, 8, 9, 10, 11]; // Jul - Des
     const MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
     // State
     let state = {
         initialBalance: 10000000,
-        semester: 2, // Default to Sem 2 as current local time is July 2026
+        semester: 2, 
         year: 2026,
-        activeMonth: 6, // Default to July
-        monthlySettings: {}, // { "0": { targetPct: 5, expense: 3000000 }, ... }
-        dailyData: {} // { "2026-01-05": { done: false, journal: "" } }
+        activeMonth: 6, 
+        monthlySettings: {}, 
+        dailyData: {},
+        supabaseUrl: '',
+        supabaseKey: '',
+        syncKey: ''
     };
 
-    // Cache to hold compounding calculations month-by-month
+    // Cache for compounding results
     let calculatedSemesterData = {}; 
+    let syncDebounceTimer;
 
     // Formatting Helpers
     const formatCurrency = (amount) => {
@@ -29,14 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }).format(amount);
     };
 
-    // Load state
+    // Load state from local storage
     function loadState() {
-        const saved = localStorage.getItem('compoundAppStateV3');
+        const saved = localStorage.getItem('pimenfx_state_v4');
         if (saved) {
             state = { ...state, ...JSON.parse(saved) };
         } else {
             // Check legacy versions
-            const oldSaved = localStorage.getItem('compoundAppStateV2') || localStorage.getItem('compoundAppState');
+            const oldSaved = localStorage.getItem('compoundAppStateV3') || localStorage.getItem('compoundAppStateV2') || localStorage.getItem('compoundAppState');
             if (oldSaved) {
                 const parsed = JSON.parse(oldSaved);
                 state.initialBalance = parsed.initialBalance || 10000000;
@@ -44,10 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.year = parsed.year || 2026;
                 state.monthlySettings = parsed.monthlySettings || {};
                 state.dailyData = parsed.dailyData || {};
+                state.supabaseUrl = parsed.supabaseUrl || '';
+                state.supabaseKey = parsed.supabaseKey || '';
+                state.syncKey = parsed.syncKey || '';
             }
         }
 
-        // Initialize target % and expense defaults for all months if not exists
+        // Initialize target % and expense defaults for all months
         const defaults = [
             { pct: 5, exp: 3000000 }, // Jan
             { pct: 5, exp: 3000000 }, // Feb
@@ -75,8 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
         validateActiveMonth();
     }
 
-    function saveState() {
-        localStorage.setItem('compoundAppStateV3', JSON.stringify(state));
+    function saveState(skipCloud = false) {
+        localStorage.setItem('pimenfx_state_v4', JSON.stringify(state));
+        if (!skipCloud) {
+            syncPushDebounced();
+        }
     }
 
     function validateActiveMonth() {
@@ -95,13 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const elTradingTableBody = document.getElementById('tradingTableBody');
     const elActiveMonthTitle = document.getElementById('activeMonthTitle');
 
-    // Metrics Card Displays
+    // Metrics Cards
     const elMetricStartBalance = document.getElementById('metricStartBalance');
     const elMetricTargetPct = document.getElementById('metricTargetPct');
     const elMetricExpense = document.getElementById('metricExpense');
     const elMetricEndBalance = document.getElementById('metricEndBalance');
 
-    // Settings Drawer Elements
+    // Settings Drawer
     const elToggleSettingsBtn = document.getElementById('toggleSettingsBtn');
     const elSettingsDrawer = document.getElementById('settingsDrawer');
     const elCloseDrawerBtn = document.getElementById('closeDrawerBtn');
@@ -109,13 +119,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const elDrawerSettingsList = document.getElementById('drawerSettingsList');
     const elSaveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-    // Export Buttons
-    const elExportPdfBtn = document.getElementById('exportPdfBtn');
-    const elExportExcelMonthBtn = document.getElementById('exportExcelMonthBtn');
-    const elExportExcelSemesterBtn = document.getElementById('exportExcelSemesterBtn');
+    // Cloud inputs
+    const elDbUrl = document.getElementById('dbUrl');
+    const elDbKey = document.getElementById('dbKey');
+    const elDbSyncKey = document.getElementById('dbSyncKey');
 
-    // Drawer Toggles
+    // Drawer triggers
     function openDrawer() {
+        // Populate inputs
+        elDbUrl.value = state.supabaseUrl;
+        elDbKey.value = state.supabaseKey;
+        elDbSyncKey.value = state.syncKey;
+
         renderDrawerSettings();
         elSettingsDrawer.classList.add('open');
         elDrawerOverlay.classList.add('visible');
@@ -131,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elDrawerOverlay.addEventListener('click', closeDrawer);
 
     // Initializer
-    function initUI() {
+    async function initUI() {
         elInitialBalance.value = state.initialBalance;
         elYearInput.value = state.year;
         
@@ -139,6 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
+
+        // Perform initial pull from cloud
+        if (state.supabaseUrl && state.supabaseKey && state.syncKey) {
+            await syncPull();
+        } else {
+            updateSyncStatus('offline');
+        }
     }
 
     function updateSemesterUI() {
@@ -151,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Main Compounding Calculator (Calculates sequentially month by month)
+    // Compounding Calculator
     function calculateCompounding() {
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
         let runningBalance = state.initialBalance;
@@ -169,9 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateObj = new Date(state.year, m, d);
-                const dayOfWeek = dateObj.getDay(); // 0: Sun, 6: Sat
+                const dayOfWeek = dateObj.getDay(); 
                 
-                // Skip Saturdays & Sundays
+                // Exclude weekends
                 if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
                 const dateStr = `${state.year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -196,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 runningBalance = saldoAkhir;
             }
 
-            // Substract monthly expense from ending balance
             if (expense > 0) {
                 runningBalance -= expense;
             }
@@ -211,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Render Month Switcher Tab Buttons
+    // Month Tabs
     function renderMonthTabs() {
         elMonthTabs.innerHTML = '';
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
@@ -225,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             btn.addEventListener('click', () => {
                 state.activeMonth = m;
-                saveState();
+                saveState(true); // Don't trigger cloud upload just for changing tabs
                 renderMonthTabs();
                 renderActiveMonthDashboard();
             });
@@ -233,21 +254,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Render active month content and updates top dashboard cards
+    // Dashboard info updates
     function renderActiveMonthDashboard() {
         const data = calculatedSemesterData[state.activeMonth];
         if (!data) return;
 
-        // Update cards values
         elMetricStartBalance.innerText = formatCurrency(data.startBalance);
         elMetricTargetPct.innerText = `${data.targetPct}% / Hari`;
         elMetricExpense.innerText = formatCurrency(data.expense);
         elMetricEndBalance.innerText = formatCurrency(data.endBalance);
 
-        // Header Title
         elActiveMonthTitle.innerText = `${MONTH_NAMES[state.activeMonth]} ${state.year}`;
 
-        // Build Table
+        // Render Table Body
         elTradingTableBody.innerHTML = '';
         data.dailyRows.forEach(row => {
             const tr = document.createElement('tr');
@@ -279,16 +298,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateStr = e.target.getAttribute('data-date');
                 if (!state.dailyData[dateStr]) state.dailyData[dateStr] = {};
                 state.dailyData[dateStr].done = e.target.checked;
+                
+                // Recalculate compounding dynamic chain forward
+                calculateCompounding();
+                renderActiveMonthDashboard();
                 saveState();
-
-                const tr = e.target.closest('tr');
-                if (e.target.checked) tr.classList.add('row-done');
-                else tr.classList.remove('row-done');
             });
         });
 
         document.querySelectorAll('.journal-input').forEach(inp => {
-            inp.addEventListener('change', (e) => { // Saves on enter or blur to optimize performance
+            inp.addEventListener('change', (e) => { 
                 const dateStr = e.target.getAttribute('data-date');
                 if (!state.dailyData[dateStr]) state.dailyData[dateStr] = {};
                 state.dailyData[dateStr].journal = e.target.value;
@@ -297,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Render monthly settings list inside drawer
+    // Monthly Settings rendering
     function renderDrawerSettings() {
         elDrawerSettingsList.innerHTML = '';
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
@@ -329,8 +348,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Save settings from drawer
-    elSaveSettingsBtn.addEventListener('click', () => {
+    // Save settings (both Database Credentials and Monthly Targets)
+    elSaveSettingsBtn.addEventListener('click', async () => {
+        // 1. Save database settings
+        const dbUrlVal = elDbUrl.value.trim();
+        const dbKeyVal = elDbKey.value.trim();
+        const dbSyncKeyVal = elDbSyncKey.value.trim();
+
+        const credentialsChanged = (state.supabaseUrl !== dbUrlVal || state.supabaseKey !== dbKeyVal || state.syncKey !== dbSyncKeyVal);
+
+        state.supabaseUrl = dbUrlVal;
+        state.supabaseKey = dbKeyVal;
+        state.syncKey = dbSyncKeyVal;
+
+        // 2. Save monthly targets
         const months = state.semester === 1 ? SEMESTER_1 : SEMESTER_2;
         months.forEach(m => {
             const pctInp = document.getElementById(`drawer_pct_${m}`);
@@ -343,49 +374,177 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        saveState();
+        saveState(credentialsChanged); // If credentials changed, pull first instead of uploading blank
         calculateCompounding();
         renderActiveMonthDashboard();
         closeDrawer();
+
+        if (credentialsChanged) {
+            if (state.supabaseUrl && state.supabaseKey && state.syncKey) {
+                await syncPull();
+            } else {
+                updateSyncStatus('offline');
+            }
+        }
     });
 
     // Top Controls Event Handlers
     elInitialBalance.addEventListener('change', () => {
         state.initialBalance = Number(elInitialBalance.value) || 0;
-        saveState();
         calculateCompounding();
         renderActiveMonthDashboard();
+        saveState();
     });
 
     elYearInput.addEventListener('change', () => {
         state.year = Number(elYearInput.value) || 2026;
-        saveState();
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
+        saveState();
     });
 
     elBtnSem1.addEventListener('click', () => {
         state.semester = 1;
         validateActiveMonth();
-        saveState();
         updateSemesterUI();
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
+        saveState();
     });
 
     elBtnSem2.addEventListener('click', () => {
         state.semester = 2;
         validateActiveMonth();
-        saveState();
         updateSemesterUI();
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
+        saveState();
     });
 
-    // Export Action Handlers
+    // --- Supabase Cloud Sync Handlers ---
+
+    async function syncPull() {
+        if (!state.supabaseUrl || !state.supabaseKey || !state.syncKey) {
+            updateSyncStatus('offline');
+            return;
+        }
+
+        updateSyncStatus('syncing');
+        try {
+            const url = `${state.supabaseUrl}/rest/v1/pimenfx_sync?sync_key=eq.${encodeURIComponent(state.syncKey)}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'apikey': state.supabaseKey,
+                    'Authorization': `Bearer ${state.supabaseKey}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Fetch failed');
+
+            const data = await response.json();
+            if (data && data.length > 0) {
+                const cloudState = data[0].app_state;
+                
+                // Merge cloud data safely into state
+                state.initialBalance = cloudState.initialBalance || state.initialBalance;
+                state.semester = cloudState.semester || state.semester;
+                state.year = cloudState.year || state.year;
+                state.monthlySettings = cloudState.monthlySettings || state.monthlySettings;
+                state.dailyData = { ...state.dailyData, ...cloudState.dailyData };
+                
+                // Update UI elements to match loaded cloud state
+                elInitialBalance.value = state.initialBalance;
+                elYearInput.value = state.year;
+                
+                saveState(true); // Save local copy without looping upload
+                updateSemesterUI();
+                calculateCompounding();
+                renderMonthTabs();
+                renderActiveMonthDashboard();
+            }
+            updateSyncStatus('synced');
+        } catch (error) {
+            console.error('Supabase Pull Error:', error);
+            updateSyncStatus('error');
+        }
+    }
+
+    function syncPushDebounced() {
+        if (!state.supabaseUrl || !state.supabaseKey || !state.syncKey) {
+            updateSyncStatus('offline');
+            return;
+        }
+
+        updateSyncStatus('syncing');
+        clearTimeout(syncDebounceTimer);
+        
+        syncDebounceTimer = setTimeout(async () => {
+            try {
+                const url = `${state.supabaseUrl}/rest/v1/pimenfx_sync`;
+                
+                // Upsert to Supabase
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': state.supabaseKey,
+                        'Authorization': `Bearer ${state.supabaseKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'resolution=merge-duplicates'
+                    },
+                    body: JSON.stringify({
+                        sync_key: state.syncKey,
+                        app_state: {
+                            initialBalance: state.initialBalance,
+                            semester: state.semester,
+                            year: state.year,
+                            monthlySettings: state.monthlySettings,
+                            dailyData: state.dailyData
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error('Push failed');
+                updateSyncStatus('synced');
+            } catch (error) {
+                console.error('Supabase Push Error:', error);
+                updateSyncStatus('error');
+            }
+        }, 1500); // 1.5 second delay
+    }
+
+    function updateSyncStatus(status) {
+        const elSyncStatus = document.getElementById('syncStatus');
+        if (!elSyncStatus) return;
+
+        elSyncStatus.className = `sync-status ${status}`;
+        const icon = elSyncStatus.querySelector('i');
+        const text = elSyncStatus.querySelector('span');
+
+        if (status === 'offline') {
+            icon.setAttribute('data-lucide', 'cloud-off');
+            text.innerText = 'Lokal';
+        } else if (status === 'syncing') {
+            icon.setAttribute('data-lucide', 'refresh-cw');
+            text.innerText = 'Menyinkronkan...';
+        } else if (status === 'synced') {
+            icon.setAttribute('data-lucide', 'cloud-lightning');
+            text.innerText = 'Tersinkron';
+        } else if (status === 'error') {
+            icon.setAttribute('data-lucide', 'cloud-rain');
+            text.innerText = 'Error Koneksi';
+        }
+        lucide.createIcons();
+    }
+
+    // --- Export Button Actions ---
+    const elExportPdfBtn = document.getElementById('exportPdfBtn');
+    const elExportExcelMonthBtn = document.getElementById('exportExcelMonthBtn');
+    const elExportExcelSemesterBtn = document.getElementById('exportExcelSemesterBtn');
+
     elExportPdfBtn.addEventListener('click', () => {
         window.print();
     });
@@ -418,7 +577,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         
-        // Col formatting rules for SheetJS
         ws['!cols'] = [
             { wch: 15 },
             { wch: 12 },
@@ -474,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         XLSX.writeFile(wb, `PimenFx_Trading_Plan_Semester_${state.semester}_${state.year}.xlsx`);
     }
 
-    // Register Service Worker for PWA Offline Support
+    // PWA Service Worker Registration
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')

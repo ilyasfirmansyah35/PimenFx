@@ -715,3 +715,54 @@ tr:last-child td { border-bottom: none; }
     }
 }
 
+/* Cloud Sync Styling */
+.sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.75rem;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+    user-select: none;
+    vertical-align: middle;
+}
+.sync-status i {
+    width: 12px;
+    height: 12px;
+}
+.sync-status.offline {
+    background: rgba(255,255,255,0.03);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+.sync-status.syncing {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+    color: var(--primary);
+}
+.sync-status.syncing i {
+    animation: spin 1.5s linear infinite;
+}
+.sync-status.synced {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.2);
+    color: var(--profit);
+}
+.sync-status.error {
+    background: rgba(244, 63, 94, 0.08);
+    border-color: rgba(244, 63, 94, 0.2);
+    color: var(--danger);
+}
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+
+.drawer-section {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+}
