@@ -526,39 +526,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }catch(e){console.error('JWT parse error:',e);return '';}
     }
 
-    // Push langsung (tanpa debounce) - dipakai saat login pertama
+    // Push langsung (tanpa debounce) - pakai INSERT lalu PATCH jika sudah ada
     async function syncPushNow(){
         if(!isSupabaseConfigured()||!state.sessionToken){updateSyncStatus('offline');return;}
-        // Jika userId kosong, ambil dari JWT
         if(!state.userId){
             state.userId=getUserIdFromJWT();
             if(state.userId) saveState(true);
         }
-        if(!state.userId){updateSyncStatus('error');console.error('userId kosong, tidak bisa push');return;}
+        if(!state.userId){updateSyncStatus('error');return;}
+
+        const appState={initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData};
+        const authHeaders={
+            'apikey':state.supabaseKey,
+            'Authorization':`Bearer ${state.sessionToken}`,
+            'Content-Type':'application/json'
+        };
+        const baseUrl=`${state.supabaseUrl}/rest/v1/pimenfx_user_data`;
+
+        updateSyncStatus('syncing');
         try{
-            const payload={user_id:state.userId,app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}};
-            const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?on_conflict=user_id`,{
+            // Langkah 1: Coba INSERT dulu
+            const insertResp=await fetch(baseUrl,{
                 method:'POST',
-                headers:{
-                    'apikey':state.supabaseKey,
-                    'Authorization':`Bearer ${state.sessionToken}`,
-                    'Content-Type':'application/json',
-                    'Prefer':'resolution=merge-duplicates'
-                },
-                body:JSON.stringify(payload)
+                headers:{...authHeaders,'Prefer':'return=minimal'},
+                body:JSON.stringify({user_id:state.userId,app_state:appState})
             });
-            if(r.status===401){
-                // Token expired - coba refresh
-                console.warn('Token expired, logging out');
-                state.sessionToken='';saveState(true);showLogin();return;
+
+            if(insertResp.status===409||insertResp.status===23505){
+                // Row sudah ada - lakukan PATCH/UPDATE
+                const patchResp=await fetch(`${baseUrl}?user_id=eq.${state.userId}`,{
+                    method:'PATCH',
+                    headers:{...authHeaders,'Prefer':'return=minimal'},
+                    body:JSON.stringify({app_state:appState})
+                });
+                if(!patchResp.ok){
+                    const t=await patchResp.text();
+                    throw new Error(`PATCH ${patchResp.status}: ${t}`);
+                }
+            } else if(!insertResp.ok){
+                const t=await insertResp.text();
+                throw new Error(`INSERT ${insertResp.status}: ${t}`);
             }
-            if(!r.ok){
-                const t=await r.text();
-                console.error('Supabase upsert response:',r.status, t);
-                throw new Error(`HTTP ${r.status}: ${t}`);
-            }
+
             updateSyncStatus('synced');
-        }catch(err){console.error('Push Error:',err);updateSyncStatus('error');}
+            return 'OK';
+        }catch(err){
+            console.error('Sync Error:',err);
+            updateSyncStatus('error');
+            return err.message;
+        }
     }
 
     // Push dengan debounce 1.5 detik (dipakai saat ada perubahan data)
@@ -573,9 +589,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const uid = state.userId || getUserIdFromJWT();
         const cfg = isSupabaseConfigured();
         const tok = state.sessionToken ? state.sessionToken.substring(0,20)+'...' : 'KOSONG';
-        const info = `DEBUG INFO:\n- Supabase: ${cfg?'OK':'TIDAK TERKONFIGURASI'}\n- Session Token: ${tok}\n- User ID: ${uid||'KOSONG'}\n\nMencoba sync sekarang...`;
-        alert(info);
-        if(cfg && state.sessionToken){ await syncPushNow(); alert('Sync selesai. Cek icon sync di kiri atas.'); }
+        alert(`DEBUG INFO:\n- Supabase: ${cfg?'OK':'TIDAK TERKONFIGURASI'}\n- Session Token: ${tok}\n- User ID: ${uid||'KOSONG'}\n\nMencoba sync sekarang...`);
+        if(cfg && state.sessionToken){
+            const result = await syncPushNow();
+            alert(`Hasil sync: ${result||'Sukses!'}`); 
+        }
     });
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
     document.getElementById('exportExcelMonthBtn').addEventListener('click',()=>{const d=calculatedSemesterData[state.activeMonth];if(!d)return;const ws=XLSX.utils.aoa_to_sheet([["Tanggal","Hari","Saldo Awal","Target Profit","Saldo Akhir","Jurnal"],...d.dailyRows.map(r=>[r.dateLabel,r.dayName,+r.saldoAwal.toFixed(2),+r.targetProfit.toFixed(2),+r.saldoAkhir.toFixed(2),r.journal]),[],["Pengeluaran","","","",+d.expense,"(Akhir Bulan)"]]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,MONTH_NAMES[state.activeMonth]);XLSX.writeFile(wb,`PimenFx_${MONTH_NAMES[state.activeMonth]}_${state.year}.xlsx`);});
