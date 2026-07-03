@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.1.7 -->
+    <!-- Version 3.1.8 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -516,17 +516,39 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         if(!isSupabaseConfigured()){displayAuthMessage('Supabase belum dikonfigurasi. Hubungi pemilik aplikasi.','error');return;}
         const email=elAuthEmail.value.trim();const password=elAuthPassword.value.trim();
+        if(!email||!password){displayAuthMessage('Email dan password tidak boleh kosong.','error');return;}
+        if(authMode==='register'&&password.length<6){displayAuthMessage('Password minimal 6 karakter.','error');return;}
         displayAuthMessage(authMode==='login'?'Sedang masuk...':'Sedang mendaftar...','success');
         try{
             if(authMode==='login'){
                 const r=await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-                if(!r.ok){const err=await r.json();throw new Error(err.error_description||err.message||'Login gagal.');}
-                const data=await r.json();state.sessionToken=data.access_token;state.userId=data.user.id;state.userEmail=data.user.email;saveState(true);
+                const data=await r.json();
+                if(!r.ok){
+                    const msg=data.error_description||data.message||data.error||'Login gagal.';
+                    if(msg.toLowerCase().includes('invalid login')||msg.toLowerCase().includes('invalid credentials')){throw new Error('Email atau password salah.');}
+                    if(msg.toLowerCase().includes('email not confirmed')){throw new Error('Email belum dikonfirmasi. Cek inbox email Anda.');}
+                    throw new Error(msg);
+                }
+                state.sessionToken=data.access_token;state.userId=data.user.id;state.userEmail=data.user.email;saveState(true);
                 displayAuthMessage('Login berhasil! Mengunduh data...','success');showDashboard();await syncPull();
             }else{
-                const r=await fetch(`${state.supabaseUrl}/auth/v1/signup`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-                if(!r.ok){const err=await r.json();throw new Error(err.message||'Pendaftaran gagal.');}
-                displayAuthMessage('Pendaftaran berhasil! Silakan cek email Anda untuk konfirmasi akun.','success');
+                const siteUrl=window.location.origin+window.location.pathname;
+                const r=await fetch(`${state.supabaseUrl}/auth/v1/signup`,{method:'POST',headers:{'apikey':state.supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({email,password,options:{emailRedirectTo:siteUrl}})});
+                const data=await r.json();
+                if(!r.ok){
+                    const code=data.error_code||data.error||'';
+                    const msg=data.message||data.msg||data.error||'Pendaftaran gagal.';
+                    if(code==='email_exists'||msg.toLowerCase().includes('already registered')){throw new Error('Email ini sudah terdaftar. Silakan masuk.');}
+                    if(code==='weak_password'||msg.toLowerCase().includes('weak')){throw new Error('Password terlalu lemah. Gunakan minimal 8 karakter kombinasi huruf dan angka.');}
+                    if(msg.toLowerCase().includes('signup')||msg.toLowerCase().includes('disabled')){throw new Error('Pendaftaran akun baru sementara dinonaktifkan.');}
+                    if(msg.toLowerCase().includes('rate limit')){throw new Error('Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.');}
+                    throw new Error(msg);
+                }
+                // Cek apakah user sudah ada (Supabase 200 tapi identitas sudah ada)
+                if(data.user&&data.user.identities&&data.user.identities.length===0){
+                    throw new Error('Email ini sudah terdaftar. Silakan masuk atau gunakan Lupa Password.');
+                }
+                displayAuthMessage('✅ Pendaftaran berhasil! Cek inbox email Anda untuk konfirmasi akun.','success');
             }
         }catch(err){console.error('Auth Error:',err);displayAuthMessage(err.message,'error');}
     });
