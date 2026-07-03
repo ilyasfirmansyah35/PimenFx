@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.3 -->
+    <!-- Version 3.2.4 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -92,7 +92,7 @@ tr.row-expanded .expand-arrow{transform:rotate(180deg)}
 .table-responsive{overflow-x:auto;width:100%}
 .table-responsive::-webkit-scrollbar{height:6px}
 .table-responsive::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:10px}
-table{width:100%;border-collapse:collapse;min-width:950px}
+table{width:100%;border-collapse:collapse;min-width:380px}
 th,td{padding:1rem 1.25rem;text-align:left;border-bottom:1px solid var(--border-color);white-space:nowrap}
 th{font-size:.75rem;text-transform:uppercase;color:var(--text-secondary);letter-spacing:1px;font-weight:700;background:rgba(0,0,0,.15)}
 td{font-size:.95rem;font-weight:500}
@@ -697,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Baris kompak (tampil default)
             const tr=document.createElement('tr');
             tr.className=`compact-row${row.done?' row-done':''}`;
-            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td title="${row.dateLabel}">${row.dateShort}</td><td title="${row.dayName}">${row.dayShort}</td><td class="amount profit"><div style="display:flex;align-items:center;justify-content:space-between;gap:.25rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
+            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td title="${row.dateLabel}">${row.dateShort}</td><td title="${row.dayName}">${row.dayShort}</td><td class="amount profit"><div style="display:flex;align-items:center;gap:.4rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
             elTradingTableBody.appendChild(tr);
             // Baris detail (tersembunyi, muncul saat diklik)
             const dr=document.createElement('tr');
