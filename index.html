@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.7 -->
+    <!-- Version 3.2.8 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -59,7 +59,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);
 .detail-cell .dval{font-size:.9rem;font-weight:600;color:var(--text-primary)}
 .detail-cell .dval.profit{color:var(--profit)}
 .detail-journal{flex:1;min-width:200px}
-.expand-arrow{display:inline-block;transition:transform .25s;color:var(--text-secondary)}
+.expand-arrow{display:none;transition:transform .25s;color:var(--text-secondary)}
 tr.row-expanded .expand-arrow{transform:rotate(180deg)}
 .compact-row{cursor:pointer}
 .compact-row:hover > td{background:rgba(255,255,255,.018)!important}
@@ -92,7 +92,7 @@ tr.row-expanded .expand-arrow{transform:rotate(180deg)}
 .table-responsive{overflow-x:hidden;width:100%}
 .table-responsive::-webkit-scrollbar{height:6px}
 .table-responsive::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:10px}
-table{width:100%;border-collapse:collapse;min-width:380px}
+table{width:100%;border-collapse:collapse;min-width:950px}
 th,td{padding:1rem 1.25rem;text-align:left;border-bottom:1px solid var(--border-color);white-space:nowrap}
 th{font-size:.75rem;text-transform:uppercase;color:var(--text-secondary);letter-spacing:1px;font-weight:700;background:rgba(0,0,0,.15)}
 td{font-size:.95rem;font-weight:500}
@@ -191,6 +191,11 @@ tr:last-child td{border-bottom:none}
     .header-badges .export-btn,.header-badges .info-badge{font-size:.7rem;padding:.4rem;justify-content:center;margin:0;width:100%!important;display:flex!important}
     .header-badges .info-badge{grid-column:span 2}
     .table-responsive{max-width:100%!important;width:100%!important;overflow-x:hidden!important}
+    .expand-arrow{display:inline-block !important}
+    table{table-layout:fixed;width:100%;min-width:0!important}
+    th:nth-child(4),td:nth-child(4),
+    th:nth-child(6),td:nth-child(6),
+    th:nth-child(7),td:nth-child(7){display:none !important}
 }
 @media(max-width:580px){
     .metrics-grid{grid-template-columns:repeat(2,1fr);gap:.4rem}
@@ -202,11 +207,10 @@ tr:last-child td{border-bottom:none}
     .tab-month-name{font-size:.8rem}
     .tab-month-sub{font-size:.6rem}
     .title-section h2{font-size:1.15rem}
-    table{table-layout:fixed;width:100%;min-width:0!important}
     th:nth-child(1),td:nth-child(1){width:42px!important;min-width:42px!important;padding:.5rem .35rem}
     th:nth-child(2),td:nth-child(2){width:68px!important;min-width:68px!important;padding:.5rem .3rem;font-size:.72rem}
     th:nth-child(3),td:nth-child(3){width:62px!important;min-width:62px!important;padding:.5rem .3rem;font-size:.72rem}
-    th:nth-child(4),td:nth-child(4){padding:.5rem .4rem;font-size:.72rem}
+    th:nth-child(5),td:nth-child(5){padding:.5rem .4rem;font-size:.72rem}
     th{font-size:.68rem;padding:.5rem .35rem}
     .detail-panel{gap:.5rem;padding:.6rem .75rem .75rem;flex-direction:column}
     .detail-cell{min-width:0;width:100%}
@@ -362,7 +366,10 @@ tr:last-child td{border-bottom:none}
                             <th style="width:50px;min-width:50px;">Done</th>
                             <th style="width:105px;min-width:95px;">Tanggal</th>
                             <th style="width:90px;min-width:80px;">Hari</th>
-                            <th>Target Profit</th>
+                            <th style="width:145px;min-width:130px;">Saldo Awal</th>
+                            <th style="width:145px;min-width:130px;">Target Profit</th>
+                            <th style="width:145px;min-width:130px;">Saldo Akhir</th>
+                            <th style="min-width:150px;">Jurnal Catatan</th>
                         </tr>
                     </thead>
                     <tbody id="tradingTableBody"></tbody>
@@ -499,7 +506,14 @@ document.addEventListener('DOMContentLoaded', () => {
         elDrawerOverlay.classList.add('visible');
     }
     function closeDrawer(){elSettingsDrawer.classList.remove('open');elDrawerOverlay.classList.remove('visible');}
-    elToggleSettingsBtn.addEventListener('click',openDrawer);
+    elToggleSettingsBtn.addEventListener('click',(e)=>{
+        e.stopPropagation();
+        if(elSettingsDrawer.classList.contains('open')){
+            closeDrawer();
+        } else {
+            openDrawer();
+        }
+    });
     elCloseDrawerBtn.addEventListener('click',closeDrawer);
     elDrawerOverlay.addEventListener('click',closeDrawer);
 
@@ -695,20 +709,21 @@ document.addEventListener('DOMContentLoaded', () => {
         elActiveMonthTitle.innerText=`${MONTH_NAMES[state.activeMonth]} ${state.year}`;
         elTradingTableBody.innerHTML='';
         data.dailyRows.forEach(row=>{
-            // Baris kompak (tampil default)
+            // Baris kompak (tampil default di mobile, lengkap di desktop)
             const tr=document.createElement('tr');
             tr.className=`compact-row${row.done?' row-done':''}`;
-            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td title="${row.dateLabel}">${row.dateShort}</td><td title="${row.dayName}">${row.dayShort}</td><td class="amount profit"><div style="display:flex;align-items:center;gap:.4rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
+            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td title="${row.dateLabel}">${row.dateShort}</td><td title="${row.dayName}">${row.dayShort}</td><td class="amount">${formatCurrency(row.saldoAwal)}</td><td class="amount profit"><div style="display:flex;align-items:center;gap:.4rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td><td class="amount">${formatCurrency(row.saldoAkhir)}</td><td><input type="text" class="journal-input" placeholder="Tulis jurnal..." data-date="${row.dateStr}" value="${row.journal}" /></td>`;
             elTradingTableBody.appendChild(tr);
-            // Baris detail (tersembunyi, muncul saat diklik)
+            // Baris detail (tersembunyi, muncul saat diklik pada mobile)
             const dr=document.createElement('tr');
             dr.className='detail-row';
             dr.style.display='none';
-            dr.innerHTML=`<td colspan="4"><div class="detail-panel"><div class="detail-cell"><label>Saldo Awal</label><span class="dval">${formatCurrency(row.saldoAwal)}</span></div><div class="detail-cell"><label>Target Profit</label><span class="dval profit">+${formatCurrency(row.targetProfit)}</span></div><div class="detail-cell"><label>Saldo Akhir</label><span class="dval">${formatCurrency(row.saldoAkhir)}</span></div><div class="detail-cell detail-journal"><label>Jurnal Catatan</label><input type="text" class="journal-input" placeholder="Tulis jurnal..." data-date="${row.dateStr}" value="${row.journal}" /></div></div></td>`;
+            dr.innerHTML=`<td colspan="7"><div class="detail-panel"><div class="detail-cell"><label>Saldo Awal</label><span class="dval">${formatCurrency(row.saldoAwal)}</span></div><div class="detail-cell"><label>Target Profit</label><span class="dval profit">+${formatCurrency(row.targetProfit)}</span></div><div class="detail-cell"><label>Saldo Akhir</label><span class="dval">${formatCurrency(row.saldoAkhir)}</span></div><div class="detail-cell detail-journal"><label>Jurnal Catatan</label><input type="text" class="journal-input" placeholder="Tulis jurnal..." data-date="${row.dateStr}" value="${row.journal}" /></div></div></td>`;
             elTradingTableBody.appendChild(dr);
-            // Klik baris untuk expand/collapse detail
+            // Klik baris untuk expand/collapse detail (hanya aktif di mobile)
             tr.addEventListener('click',(e)=>{
-                if(e.target.type==='checkbox') return;
+                if(window.innerWidth > 768) return;
+                if(e.target.type==='checkbox'||e.target.tagName==='INPUT') return;
                 const isOpen=dr.style.display!=='none';
                 dr.style.display=isOpen?'none':'table-row';
                 tr.classList.toggle('row-expanded',!isOpen);
