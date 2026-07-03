@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.8 -->
+    <!-- Version 3.2.9 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -256,7 +256,7 @@ tr:last-child td{border-bottom:none}
                         <a href="#" class="forgot-link" id="forgotPasswordLink">Lupa password?</a>
                     </div>
                     <div class="drawer-input-wrapper">
-                        <input type="password" id="authPassword" required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+                        <input type="password" id="authPassword" required placeholder="********" />
                         <button type="button" class="password-toggle-btn" id="authPasswordToggle">
                             <i data-lucide="eye"></i>
                         </button>
@@ -624,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(data.user&&data.user.identities&&data.user.identities.length===0){
                     throw new Error('Email ini sudah terdaftar. Silakan masuk atau gunakan Lupa Password.');
                 }
-                displayAuthMessage('âœ… Pendaftaran berhasil! Cek inbox email Anda untuk konfirmasi akun.','success');
+                displayAuthMessage('Pendaftaran berhasil! Cek inbox email Anda untuk konfirmasi akun.','success');
             }
         }catch(err){console.error('Auth Error:',err);displayAuthMessage(err.message,'error');}
     });
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 throw new Error(data.message || data.msg || data.error || 'Gagal mengirim email. Coba lagi nanti.');
             }
-            displayAuthMessage('âœ… Link reset password telah dikirim! Cek inbox email Anda.','success');
+            displayAuthMessage('Link reset password telah dikirim! Cek inbox email Anda.','success');
         }
         catch(err){displayAuthMessage(err.message,'error');}
     });
@@ -886,9 +886,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Klik sync icon untuk debug / force sync
     document.getElementById('syncStatus').addEventListener('click', async ()=>{
-        if(!state.sessionToken){showToast('âŒ Belum login!','error');return;}
+        if(!state.sessionToken){showToast('[Error] Belum login!','error');return;}
         if(!state.userId) state.userId=getUserIdFromJWT();
-        showToast('â³ Testing koneksi Supabase...','info');
+        showToast('[Info] Testing koneksi Supabase...','info');
         let httpStatus=0, httpBody='';
         try{
             const resp = await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data`,{
@@ -904,17 +904,17 @@ document.addEventListener('DOMContentLoaded', () => {
             httpStatus=resp.status;
             httpBody=await resp.text();
         } catch(err){
-            showToast(`âŒ Fetch gagal: ${err.message}`,'error');
+            showToast(`[Error] Fetch gagal: ${err.message}`,'error');
             return;
         }
         // Tampilkan hasil - di luar try agar tidak diinterupsi
         if(httpStatus===201||httpStatus===200){
-            showToast(`âœ… INSERT OK! (HTTP ${httpStatus}) Data tersimpan ke Supabase!`,'success');
+            showToast(`[OK] INSERT OK! (HTTP ${httpStatus}) Data tersimpan ke Supabase!`,'success');
             updateSyncStatus('synced');
             await syncPushNow();
         } else if(httpStatus===409){
             // 409 = row sudah ada = data memang sudah tersimpan sebelumnya!
-            showToast('âœ… Data sudah ada di cloud (HTTP 409). Melakukan update...','success');
+            showToast('[OK] Data sudah ada di cloud (HTTP 409). Melakukan update...','success');
             // Lakukan PATCH untuk update data terbaru
             try{
                 const patchResp=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?user_id=eq.${state.userId}`,{
@@ -923,15 +923,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     body:JSON.stringify({app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}})
                 });
                 if(patchResp.ok){
-                    showToast('âœ… Update berhasil! Semua data tersinkron.','success');
+                    showToast('[OK] Update berhasil! Semua data tersinkron.','success');
                     updateSyncStatus('synced');
                 } else {
                     const pt=await patchResp.text();
-                    showToast(`âŒ PATCH gagal HTTP ${patchResp.status}: ${pt.substring(0,100)}`,'error');
+                    showToast(`[Error] PATCH gagal HTTP ${patchResp.status}: ${pt.substring(0,100)}`,'error');
                 }
-            } catch(pe){ showToast(`âŒ PATCH error: ${pe.message}`,'error'); }
+            } catch(pe){ showToast(`[Error] PATCH error: ${pe.message}`,'error'); }
         } else {
-            showToast(`âŒ HTTP ${httpStatus}: ${httpBody.substring(0,150)}`,'error');
+            showToast(`[Error] HTTP ${httpStatus}: ${httpBody.substring(0,150)}`,'error');
             updateSyncStatus('error',httpStatus);
         }
     });
