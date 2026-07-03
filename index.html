@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PimenFx - Trading Compounding Plan</title>
-    <!-- Version 3.2.1 -->
+    <!-- Version 3.2.2 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <!-- Cache busting: force browsers/mobile to always load latest version -->
@@ -43,6 +43,26 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-main);
 .sem-btn.active{background:var(--primary);color:#fff;box-shadow:0 2px 10px var(--primary-glow)}
 .settings-trigger-btn{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:var(--primary);padding:.65rem 1.25rem;border-radius:12px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;transition:all .3s;flex-shrink:0;white-space:nowrap}
 .settings-trigger-btn:hover{background:var(--primary);color:#fff;box-shadow:0 4px 15px var(--primary-glow);transform:translateY(-1px)}
+.account-btn{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:var(--primary);width:42px;height:42px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s;flex-shrink:0}
+.account-btn:hover{background:var(--primary);color:#fff;box-shadow:0 4px 15px var(--primary-glow)}
+.nav-right{position:relative;display:flex;align-items:center;gap:.6rem}
+.account-dropdown{position:absolute;top:calc(100% + .5rem);right:0;background:rgba(13,17,30,0.98);backdrop-filter:blur(20px);border:1px solid var(--border-color);border-radius:16px;padding:.75rem;min-width:230px;z-index:2000;box-shadow:0 20px 40px rgba(0,0,0,.5);opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .25s}
+.account-dropdown.visible{opacity:1;visibility:visible;transform:translateY(0)}
+.acc-email-card{display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;margin-bottom:.65rem}
+.acc-email-card span{font-size:.8rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.dropdown-logout-btn{width:100%;background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.2);color:var(--danger);padding:.6rem 1rem;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;font-family:inherit;font-weight:600;font-size:.85rem;transition:all .3s}
+.dropdown-logout-btn:hover{background:var(--danger);color:#fff;box-shadow:0 4px 12px rgba(244,63,94,.3)}
+.detail-row td{padding:0!important;border:none!important}
+.detail-panel{padding:.75rem 1rem 1rem;background:rgba(59,130,246,0.03);border-top:1px solid var(--border-color);display:flex;flex-wrap:wrap;gap:.75rem 1.5rem}
+.detail-cell{display:flex;flex-direction:column;gap:.2rem}
+.detail-cell label{font-size:.65rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.detail-cell .dval{font-size:.9rem;font-weight:600;color:var(--text-primary)}
+.detail-cell .dval.profit{color:var(--profit)}
+.detail-journal{flex:1;min-width:200px}
+.expand-arrow{display:inline-block;transition:transform .25s;color:var(--text-secondary)}
+tr.row-expanded .expand-arrow{transform:rotate(180deg)}
+.compact-row{cursor:pointer}
+.compact-row:hover > td{background:rgba(255,255,255,.018)!important}
 .month-tabs-bar{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.25rem}
 .month-tabs-bar::-webkit-scrollbar{height:4px}
 .month-tabs-bar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
@@ -274,9 +294,23 @@ tr:last-child td{border-bottom:none}
                 </div>
             </div>
             <div class="nav-controls">
-                <button class="settings-trigger-btn" id="toggleSettingsBtn" title="Pengaturan">
-                    <i data-lucide="settings"></i><span>Pengaturan</span>
-                </button>
+                <div class="nav-right">
+                    <button class="account-btn" id="accountBtn" title="Akun Saya">
+                        <i data-lucide="user"></i>
+                    </button>
+                    <div class="account-dropdown" id="accountDropdown">
+                        <div class="acc-email-card">
+                            <i data-lucide="user-circle" style="width:16px;height:16px;color:var(--primary);flex-shrink:0;"></i>
+                            <span id="accountEmailDisplay">-</span>
+                        </div>
+                        <button class="dropdown-logout-btn" id="logoutBtn">
+                            <i data-lucide="log-out"></i> Logout
+                        </button>
+                    </div>
+                    <button class="settings-trigger-btn" id="toggleSettingsBtn" title="Pengaturan">
+                        <i data-lucide="settings"></i><span>Pengaturan</span>
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -317,12 +351,9 @@ tr:last-child td{border-bottom:none}
                     <thead>
                         <tr>
                             <th style="width:50px;min-width:50px;">Done</th>
-                            <th style="width:100px;min-width:90px;">Tanggal</th>
-                            <th style="width:80px;min-width:70px;">Hari</th>
-                            <th style="width:145px;min-width:130px;">Saldo Awal</th>
-                            <th style="width:145px;min-width:130px;">Target Profit</th>
-                            <th style="width:145px;min-width:130px;">Saldo Akhir</th>
-                            <th style="min-width:150px;">Jurnal Catatan</th>
+                            <th style="width:105px;min-width:95px;">Tanggal</th>
+                            <th style="width:90px;min-width:80px;">Hari</th>
+                            <th>Target Profit</th>
                         </tr>
                     </thead>
                     <tbody id="tradingTableBody"></tbody>
@@ -333,16 +364,9 @@ tr:last-child td{border-bottom:none}
 
     <!-- Settings Drawer -->
     <div class="settings-drawer" id="settingsDrawer">
-        <div class="drawer-header" style="flex-direction:column;align-items:stretch;gap:.5rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h3><i data-lucide="settings"></i> Pengaturan</h3>
-                <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
-            </div>
-            <div id="drawerUserInfo" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:.5rem .75rem;display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-secondary);">
-                <i data-lucide="user-circle" style="width:16px;height:16px;color:var(--primary);flex-shrink:0;"></i>
-                <span id="drawerUserEmail" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">-</span>
-            </div>
-        </div>
+        <div class="drawer-header">
+            <h3><i data-lucide="settings"></i> Pengaturan</h3>
+            <button class="close-btn" id="closeDrawerBtn"><i data-lucide="x"></i></button>
         </div>
         <div class="drawer-body">
             <!-- Section 1: Rencana Utama -->
@@ -376,16 +400,11 @@ tr:last-child td{border-bottom:none}
             <div class="drawer-section" style="padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);">
                 <h4 style="font-size:.95rem;font-weight:700;color:var(--primary);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;"><i data-lucide="calendar"></i> Target & Pengeluaran Bulanan</h4>
                 <div id="drawerSettingsList" class="setting-inputs" style="gap:1.25rem;display:flex;flex-direction:column;"></div>
-            </div>
-
-            <!-- Section 3: Tindakan Akun -->
+                <!-- Section 3: Reset Data -->
             <div class="drawer-section" style="border:none;padding:0;margin:0;">
-                <h4 style="font-size:.95rem;font-weight:700;color:var(--primary);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;"><i data-lucide="user"></i> Tindakan Akun</h4>
-                <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.75rem;">
-                    <button class="danger-btn" id="logoutBtn" style="background:rgba(244,63,94,0.1); border:1px solid rgba(244,63,94,0.25); color:var(--danger); display:flex; align-items:center; justify-content:center; gap:0.5rem; width:100%;"><i data-lucide="log-out"></i> Logout</button>
-                    <button class="danger-btn" id="resetDataBtn"><i data-lucide="trash-2"></i> Reset Rencana & Jurnal</button>
-                </div>
-            </div>
+                <h4 style="font-size:.95rem;font-weight:700;color:var(--danger);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;"><i data-lucide="trash-2"></i> Reset Data</h4>
+                <button class="danger-btn" id="resetDataBtn" style="width:100%;"><i data-lucide="trash-2"></i> Reset Rencana &amp; Jurnal</button>
+            </div>          </div>
         </div>
         <div class="drawer-footer">
             <button class="primary-btn" id="saveSettingsBtn"><i data-lucide="check-circle"></i> Terapkan & Sinkron</button>
@@ -537,9 +556,9 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateCompounding();
         renderMonthTabs();
         renderActiveMonthDashboard();
-        // Tampilkan email user di drawer
-        const elEmail=document.getElementById('drawerUserEmail');
-        if(elEmail) elEmail.textContent=state.userEmail||'Akun aktif';
+        // Tampilkan email di account dropdown
+        const elAccEmail=document.getElementById('accountEmailDisplay');
+        if(elAccEmail) elAccEmail.textContent=state.userEmail||'Akun aktif';
     }
     function showLogin(){elDashboardWrapper.style.display='none';elLoginWrapper.style.display='flex';updateSyncStatus('offline');lucide.createIcons();}
     elTabLoginBtn.addEventListener('click',()=>{authMode='login';elTabLoginBtn.classList.add('active');elTabRegisterBtn.classList.remove('active');elAuthSubmitBtn.querySelector('span').innerText='Masuk';elAuthMessage.innerText='';elAuthMessage.className='auth-message';});
@@ -622,13 +641,23 @@ document.addEventListener('DOMContentLoaded', () => {
     elLogoutBtn.addEventListener('click',()=>{
         state.sessionToken='';state.userId='';state.userEmail='';
         saveState(true);
-        // Tutup settings drawer dan overlay sebelum kembali ke login
-        const drawer=document.getElementById('settingsDrawer');
-        const overlay=document.getElementById('drawerOverlay');
-        if(drawer) drawer.classList.remove('open');
-        if(overlay) overlay.classList.remove('visible');
+        document.getElementById('settingsDrawer')?.classList.remove('open');
+        document.getElementById('drawerOverlay')?.classList.remove('visible');
+        document.getElementById('accountDropdown')?.classList.remove('visible');
         showLogin();
     });
+    // Account dropdown toggle
+    const elAccountBtn=document.getElementById('accountBtn');
+    const elAccountDropdown=document.getElementById('accountDropdown');
+    if(elAccountBtn&&elAccountDropdown){
+        elAccountBtn.addEventListener('click',(e)=>{
+            e.stopPropagation();
+            elAccountDropdown.classList.toggle('visible');
+            lucide.createIcons();
+        });
+        elAccountDropdown.addEventListener('click',(e)=>e.stopPropagation());
+        document.addEventListener('click',()=>elAccountDropdown.classList.remove('visible'));
+    }
     elResetDataBtn.addEventListener('click',()=>{if(confirm("Yakin ingin menghapus seluruh centang harian dan jurnal?")){state.dailyData={};calculateCompounding();renderActiveMonthDashboard();saveState();closeDrawer();alert("Data direset!");}});
     function updateSemesterUI(){if(state.semester===1){elBtnSem1.classList.add('active');elBtnSem2.classList.remove('active');}else{elBtnSem2.classList.add('active');elBtnSem1.classList.remove('active');}}
     function calculateCompounding(){
@@ -648,10 +677,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderMonthTabs(){elMonthTabs.innerHTML='';const months=state.semester===1?SEMESTER_1:SEMESTER_2;months.forEach(m=>{const btn=document.createElement('button');btn.className=`tab-btn ${state.activeMonth===m?'active':''}`;btn.innerHTML=`<span class="tab-month-name">${MONTH_NAMES[m]}</span><span class="tab-month-sub">${state.year}</span>`;btn.addEventListener('click',()=>{state.activeMonth=m;saveState(true);renderMonthTabs();renderActiveMonthDashboard();});elMonthTabs.appendChild(btn);});}
     function renderActiveMonthDashboard(){
         const data=calculatedSemesterData[state.activeMonth];if(!data)return;
-        elMetricStartBalance.innerText=formatCurrency(data.startBalance);elMetricTargetPct.innerText=`${data.targetPct}% / Hari`;elMetricExpense.innerText=formatCurrency(data.expense);elMetricEndBalance.innerText=formatCurrency(data.endBalance);elActiveMonthTitle.innerText=`${MONTH_NAMES[state.activeMonth]} ${state.year}`;
+        elMetricStartBalance.innerText=formatCurrency(data.startBalance);
+        elMetricTargetPct.innerText=`${data.targetPct}% / Hari`;
+        elMetricExpense.innerText=formatCurrency(data.expense);
+        elMetricEndBalance.innerText=formatCurrency(data.endBalance);
+        elActiveMonthTitle.innerText=`${MONTH_NAMES[state.activeMonth]} ${state.year}`;
         elTradingTableBody.innerHTML='';
-        data.dailyRows.forEach(row=>{const tr=document.createElement('tr');if(row.done)tr.className='row-done';tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td>${row.dateLabel}</td><td>${row.dayName}</td><td class="amount">${formatCurrency(row.saldoAwal)}</td><td class="amount profit">+${formatCurrency(row.targetProfit)}</td><td class="amount">${formatCurrency(row.saldoAkhir)}</td><td><input type="text" class="journal-input" placeholder="Tulis jurnal..." data-date="${row.dateStr}" value="${row.journal}" /></td>`;elTradingTableBody.appendChild(tr);});
-        lucide.createIcons();attachTableEvents();
+        data.dailyRows.forEach(row=>{
+            // Baris kompak (tampil default)
+            const tr=document.createElement('tr');
+            tr.className=`compact-row${row.done?' row-done':''}`;
+            tr.innerHTML=`<td><input type="checkbox" class="status-checkbox" data-date="${row.dateStr}" ${row.done?'checked':''} /></td><td>${row.dateLabel}</td><td>${row.dayName}</td><td class="amount profit"><div style="display:flex;align-items:center;justify-content:space-between;gap:.25rem;">+${formatCurrency(row.targetProfit)}<svg class="expand-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div></td>`;
+            elTradingTableBody.appendChild(tr);
+            // Baris detail (tersembunyi, muncul saat diklik)
+            const dr=document.createElement('tr');
+            dr.className='detail-row';
+            dr.style.display='none';
+            dr.innerHTML=`<td colspan="4"><div class="detail-panel"><div class="detail-cell"><label>Saldo Awal</label><span class="dval">${formatCurrency(row.saldoAwal)}</span></div><div class="detail-cell"><label>Target Profit</label><span class="dval profit">+${formatCurrency(row.targetProfit)}</span></div><div class="detail-cell"><label>Saldo Akhir</label><span class="dval">${formatCurrency(row.saldoAkhir)}</span></div><div class="detail-cell detail-journal"><label>Jurnal Catatan</label><input type="text" class="journal-input" placeholder="Tulis jurnal..." data-date="${row.dateStr}" value="${row.journal}" /></div></div></td>`;
+            elTradingTableBody.appendChild(dr);
+            // Klik baris untuk expand/collapse detail
+            tr.addEventListener('click',(e)=>{
+                if(e.target.type==='checkbox') return;
+                const isOpen=dr.style.display!=='none';
+                dr.style.display=isOpen?'none':'table-row';
+                tr.classList.toggle('row-expanded',!isOpen);
+            });
+        });
+        lucide.createIcons();
+        attachTableEvents();
     }
     function attachTableEvents(){
         document.querySelectorAll('.status-checkbox').forEach(cb=>{cb.addEventListener('change',(e)=>{const ds=e.target.getAttribute('data-date');if(!state.dailyData[ds])state.dailyData[ds]={};state.dailyData[ds].done=e.target.checked;calculateCompounding();renderActiveMonthDashboard();saveState();});});
