@@ -513,12 +513,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch(err){console.error('Pull Error:',err);updateSyncStatus('error');}
     }
-    // Ambil user ID dari JWT token (jika state.userId kosong)
+    // Ambil user ID dari JWT token (base64URL safe)
     function getUserIdFromJWT(){
         try{
-            const payload=JSON.parse(atob(state.sessionToken.split('.')[1]));
+            // JWT pakai base64URL (- dan _ bukan + dan /), perlu dikonversi dulu
+            let b64 = state.sessionToken.split('.')[1];
+            b64 = b64.replace(/-/g,'+').replace(/_/g,'/');
+            // Tambah padding jika perlu
+            while(b64.length % 4) b64+='=';
+            const payload=JSON.parse(atob(b64));
             return payload.sub||'';
-        }catch(e){return '';}
+        }catch(e){console.error('JWT parse error:',e);return '';}
     }
 
     // Push langsung (tanpa debounce) - dipakai saat login pertama
@@ -532,7 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!state.userId){updateSyncStatus('error');console.error('userId kosong, tidak bisa push');return;}
         try{
             const payload={user_id:state.userId,app_state:{initialBalance:state.initialBalance,semester:state.semester,year:state.year,monthlySettings:state.monthlySettings,dailyData:state.dailyData}};
-            // Gunakan ?on_conflict=user_id agar upsert benar
             const r=await fetch(`${state.supabaseUrl}/rest/v1/pimenfx_user_data?on_conflict=user_id`,{
                 method:'POST',
                 headers:{
@@ -543,8 +547,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body:JSON.stringify(payload)
             });
-            if(r.status===401){state.sessionToken='';saveState(true);showLogin();return;}
-            if(!r.ok){const t=await r.text();throw new Error(t);}
+            if(r.status===401){
+                // Token expired - coba refresh
+                console.warn('Token expired, logging out');
+                state.sessionToken='';saveState(true);showLogin();return;
+            }
+            if(!r.ok){
+                const t=await r.text();
+                console.error('Supabase upsert response:',r.status, t);
+                throw new Error(`HTTP ${r.status}: ${t}`);
+            }
             updateSyncStatus('synced');
         }catch(err){console.error('Push Error:',err);updateSyncStatus('error');}
     }
@@ -555,7 +567,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSyncStatus('syncing');clearTimeout(syncDebounceTimer);
         syncDebounceTimer=setTimeout(()=>syncPushNow(),1500);
     }
-    function updateSyncStatus(status){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText='Error Koneksi';}lucide.createIcons();}
+    function updateSyncStatus(status){const el=document.getElementById('syncStatus');if(!el)return;el.className=`sync-status ${status}`;const icon=el.querySelector('i');const text=el.querySelector('span');if(status==='offline'){icon.setAttribute('data-lucide','cloud-off');text.innerText='Lokal';}else if(status==='syncing'){icon.setAttribute('data-lucide','refresh-cw');text.innerText='Menyinkronkan...';}else if(status==='synced'){icon.setAttribute('data-lucide','cloud-lightning');text.innerText='Tersinkron';}else if(status==='error'){icon.setAttribute('data-lucide','cloud-rain');text.innerText='Error - Klik!';}lucide.createIcons();}
+    // Klik sync icon untuk debug / force sync
+    document.getElementById('syncStatus').addEventListener('click', async ()=>{
+        const uid = state.userId || getUserIdFromJWT();
+        const cfg = isSupabaseConfigured();
+        const tok = state.sessionToken ? state.sessionToken.substring(0,20)+'...' : 'KOSONG';
+        const info = `DEBUG INFO:\n- Supabase: ${cfg?'OK':'TIDAK TERKONFIGURASI'}\n- Session Token: ${tok}\n- User ID: ${uid||'KOSONG'}\n\nMencoba sync sekarang...`;
+        alert(info);
+        if(cfg && state.sessionToken){ await syncPushNow(); alert('Sync selesai. Cek icon sync di kiri atas.'); }
+    });
     document.getElementById('exportPdfBtn').addEventListener('click',()=>window.print());
     document.getElementById('exportExcelMonthBtn').addEventListener('click',()=>{const d=calculatedSemesterData[state.activeMonth];if(!d)return;const ws=XLSX.utils.aoa_to_sheet([["Tanggal","Hari","Saldo Awal","Target Profit","Saldo Akhir","Jurnal"],...d.dailyRows.map(r=>[r.dateLabel,r.dayName,+r.saldoAwal.toFixed(2),+r.targetProfit.toFixed(2),+r.saldoAkhir.toFixed(2),r.journal]),[],["Pengeluaran","","","",+d.expense,"(Akhir Bulan)"]]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,MONTH_NAMES[state.activeMonth]);XLSX.writeFile(wb,`PimenFx_${MONTH_NAMES[state.activeMonth]}_${state.year}.xlsx`);});
     document.getElementById('exportExcelSemesterBtn').addEventListener('click',()=>{const months=state.semester===1?SEMESTER_1:SEMESTER_2;const wb=XLSX.utils.book_new();months.forEach(m=>{const d=calculatedSemesterData[m];if(!d)return;const ws=XLSX.utils.aoa_to_sheet([["Tanggal","Hari","Saldo Awal","Target Profit","Saldo Akhir","Jurnal"],...d.dailyRows.map(r=>[r.dateLabel,r.dayName,+r.saldoAwal.toFixed(2),+r.targetProfit.toFixed(2),+r.saldoAkhir.toFixed(2),r.journal]),[],["Pengeluaran","","","",+d.expense,"(Akhir Bulan)"]]);XLSX.utils.book_append_sheet(wb,ws,MONTH_NAMES[m]);});XLSX.writeFile(wb,`PimenFx_Semester_${state.semester}_${state.year}.xlsx`);});
